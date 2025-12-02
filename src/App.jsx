@@ -1249,6 +1249,37 @@ const PdfViewer = ({ fileUrl, pdfLibLoaded, annotations = {}, onAnnotationsChang
             onTouchEnd={finishStroke}
             style={{ touchAction: 'none' }}
           />
+
+          {/* Navigation Click Zones (Always active) */}
+          <>
+            {/* Left Zone - Previous Page */}
+            <div
+              className="absolute top-0 bottom-0 left-0 w-[12%] z-10 cursor-pointer hover:bg-black/5 group flex items-center justify-start pl-2 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                changePage(-1);
+              }}
+              title="上一页"
+            >
+              <div className="bg-black/20 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100 backdrop-blur-sm">
+                <ChevronLeft className="h-6 w-6" />
+              </div>
+            </div>
+
+            {/* Right Zone - Next Page */}
+            <div
+              className="absolute top-0 bottom-0 right-0 w-[12%] z-10 cursor-pointer hover:bg-black/5 group flex items-center justify-end pr-2 transition-colors"
+              onClick={(e) => {
+                e.stopPropagation();
+                changePage(1);
+              }}
+              title="下一页"
+            >
+              <div className="bg-black/20 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100 backdrop-blur-sm">
+                <ChevronRight className="h-6 w-6" />
+              </div>
+            </div>
+          </>
         </div>
       </div>
     </div>
