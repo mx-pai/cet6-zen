@@ -1267,6 +1267,7 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
   const [elapsedSeconds, setElapsedSeconds] = useState(exam.elapsedSeconds || 0);
   const [annotations, setAnnotations] = useState(exam.annotations || {});
   const [timerRunning, setTimerRunning] = useState(true);
+  const [rightPanelVisible, setRightPanelVisible] = useState(true);
   const sectionScrollRef = useRef(null);
 
   // Debounced Save
@@ -1353,8 +1354,8 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
 
       {/* LEFT PANEL: PDF Viewer */}
       <div
-        className="flex flex-col h-full bg-slate-800 relative transition-all duration-100"
-        style={{ width: `${100 - rightPanelWidth}%` }}
+        className="flex flex-col h-full bg-slate-800 relative transition-all duration-300"
+        style={{ width: rightPanelVisible ? `${100 - rightPanelWidth}%` : '100%' }}
       >
         {!fileUrl ? (
           <div className="flex-grow flex flex-col items-center justify-center p-8 text-slate-500 bg-slate-200">
@@ -1389,309 +1390,335 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
         )}
       </div>
 
+      {/* Toggle Button - Floating when panel is hidden */}
+      {!rightPanelVisible && (
+        <button
+          onClick={() => setRightPanelVisible(true)}
+          className="fixed right-4 top-20 z-50 flex items-center gap-2 px-4 py-3 bg-indigo-600 text-white rounded-lg shadow-xl hover:bg-indigo-700 transition-all hover:scale-105"
+          title="显示答题区"
+        >
+          <ChevronLeft className="h-5 w-5" />
+          <span className="font-medium">答题区</span>
+        </button>
+      )}
+
       {/* RESIZER HANDLE */}
-      <div className="w-1 bg-slate-300 hover:bg-indigo-400 cursor-col-resize flex items-center justify-center z-20 hover:w-2 transition-all"
-        onMouseDown={(e) => {
-          const startX = e.clientX;
-          const startWidth = rightPanelWidth;
-          const handleMouseMove = (moveEvent) => {
-            const delta = startX - moveEvent.clientX;
-            const totalWidth = document.body.clientWidth;
-            const newWidth = startWidth + (delta / totalWidth) * 100;
-            if (newWidth > 25 && newWidth < 75) setRightPanelWidth(newWidth);
-          };
-          const handleMouseUp = () => {
-            document.removeEventListener('mousemove', handleMouseMove);
-            document.removeEventListener('mouseup', handleMouseUp);
-          };
-          document.addEventListener('mousemove', handleMouseMove);
-          document.addEventListener('mouseup', handleMouseUp);
-        }}
-      >
-        <div className="w-1 h-8 bg-slate-400 rounded-full"></div>
-      </div>
+      {rightPanelVisible && (
+        <div className="w-1 bg-slate-300 hover:bg-indigo-400 cursor-col-resize flex items-center justify-center z-20 hover:w-2 transition-all"
+          onMouseDown={(e) => {
+            const startX = e.clientX;
+            const startWidth = rightPanelWidth;
+            const handleMouseMove = (moveEvent) => {
+              const delta = startX - moveEvent.clientX;
+              const totalWidth = document.body.clientWidth;
+              const newWidth = startWidth + (delta / totalWidth) * 100;
+              if (newWidth > 25 && newWidth < 75) setRightPanelWidth(newWidth);
+            };
+            const handleMouseUp = () => {
+              document.removeEventListener('mousemove', handleMouseMove);
+              document.removeEventListener('mouseup', handleMouseUp);
+            };
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+          }}
+        >
+          <div className="w-1 h-8 bg-slate-400 rounded-full"></div>
+        </div>
+      )}
 
       {/* RIGHT PANEL: Tools (Answer Sheet & Notes) */}
-      <div
-        className="flex flex-col h-full bg-white border-l border-slate-200 shadow-xl z-20"
-        style={{ width: `${rightPanelWidth}%` }}
-      >
-        {/* Right panel header - STICKY */}
-        <div className="sticky top-0 z-20 flex items-center justify-between px-3 py-2 border-b border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
-              CET-6 Focus · Answer Sheet
-            </span>
-            <span className="text-sm font-medium text-slate-800 truncate max-w-[12rem] sm:max-w-xs">
-              {exam.title}
-            </span>
-            <div className="mt-0.5 inline-flex items-center text-[11px] text-slate-400 gap-2">
-              <span className="inline-flex items-center">
-                <Clock className="h-3 w-3 mr-1" />
-                已用时{' '}
-                {`${String(Math.floor(elapsedSeconds / 60)).padStart(
-                  2,
-                  '0',
-                )}:${String(elapsedSeconds % 60).padStart(2, '0')}`}
+      {rightPanelVisible && (
+        <div
+          className="flex flex-col h-full bg-white border-l border-slate-200 shadow-xl z-20 transition-all duration-300"
+          style={{ width: `${rightPanelWidth}%` }}
+        >
+          {/* Right panel header - STICKY */}
+          <div className="sticky top-0 z-20 flex items-center justify-between px-3 py-2 border-b border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-col">
+              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
+                CET-6 Focus · Answer Sheet
               </span>
+              <span className="text-sm font-medium text-slate-800 truncate max-w-[12rem] sm:max-w-xs">
+                {exam.title}
+              </span>
+              <div className="mt-0.5 inline-flex items-center text-[11px] text-slate-400 gap-2">
+                <span className="inline-flex items-center">
+                  <Clock className="h-3 w-3 mr-1" />
+                  已用时{' '}
+                  {`${String(Math.floor(elapsedSeconds / 60)).padStart(
+                    2,
+                    '0',
+                  )}:${String(elapsedSeconds % 60).padStart(2, '0')}`}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setTimerRunning((prev) => !prev)}
+                  className="px-1.5 py-0.5 rounded-full border border-slate-300 text-[10px] text-slate-600 hover:bg-slate-100 bg-white"
+                >
+                  {timerRunning ? '暂停' : '继续'}
+                </button>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
               <button
-                type="button"
-                onClick={() => setTimerRunning((prev) => !prev)}
-                className="px-1.5 py-0.5 rounded-full border border-slate-300 text-[10px] text-slate-600 hover:bg-slate-100 bg-white"
+                onClick={() => setRightPanelVisible(false)}
+                className="flex items-center px-2.5 py-1.5 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors text-xs"
+                title="隐藏答题区（全屏看PDF）"
               >
-                {timerRunning ? '暂停' : '继续'}
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm('确定返回题库吗？您的答案已自动保存。')) {
+                    onBack();
+                  }
+                }}
+                className="flex items-center px-3 py-2 bg-slate-900 text-white text-xs rounded-lg hover:bg-black transition-colors shadow-sm font-medium"
+              >
+                <ArrowUpCircle className="h-4 w-4 mr-1.5" />
+                返回题库
               </button>
             </div>
           </div>
-          <button
-            onClick={() => {
-              if (window.confirm('确定返回题库吗？您的答案已自动保存。')) {
-                onBack();
-              }
-            }}
-            className="flex items-center px-3 py-2 bg-slate-900 text-white text-xs rounded-lg hover:bg-black transition-colors shadow-sm font-medium"
-          >
-            <ArrowUpCircle className="h-4 w-4 mr-1.5" />
-            返回题库
-          </button>
-        </div>
 
-        {/* Navigation Tabs - STICKY to prevent offset */}
-        <div className="sticky top-0 z-10 flex border-b border-slate-200 bg-slate-50 overflow-x-auto shadow-sm">
-          {[
-            { id: 'writing', icon: Feather, label: '作文' },
-            { id: 'listening', icon: Headphones, label: '听力' },
-            { id: 'reading', icon: BookOpen, label: '阅读' },
-            { id: 'translation', icon: Languages, label: '翻译' },
-            { id: 'notes', icon: PenLine, label: '草稿' },
-          ].map(tab => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveSection(tab.id)}
-              className={`
+          {/* Navigation Tabs - STICKY to prevent offset */}
+          <div className="sticky top-0 z-10 flex border-b border-slate-200 bg-slate-50 overflow-x-auto shadow-sm">
+            {[
+              { id: 'writing', icon: Feather, label: '作文' },
+              { id: 'listening', icon: Headphones, label: '听力' },
+              { id: 'reading', icon: BookOpen, label: '阅读' },
+              { id: 'translation', icon: Languages, label: '翻译' },
+              { id: 'notes', icon: PenLine, label: '草稿' },
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveSection(tab.id)}
+                className={`
                  flex-1 py-3 px-2 min-w-[4rem] text-xs sm:text-sm font-medium flex flex-col sm:flex-row items-center justify-center transition-all border-b-2
                  ${activeSection === tab.id
-                  ? 'text-indigo-600 border-indigo-600 bg-white shadow-sm'
-                  : 'text-slate-500 border-transparent hover:bg-slate-100 hover:text-slate-700'
-                }
+                    ? 'text-indigo-600 border-indigo-600 bg-white shadow-sm'
+                    : 'text-slate-500 border-transparent hover:bg-slate-100 hover:text-slate-700'
+                  }
                `}
-            >
-              <tab.icon className="h-4 w-4 sm:mr-2 mb-1 sm:mb-0" />
-              {tab.label}
-            </button>
-          ))}
-        </div>
+              >
+                <tab.icon className="h-4 w-4 sm:mr-2 mb-1 sm:mb-0" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-        {/* Tab Content - Fixed container to prevent bar offset */}
-        <div className="flex-grow overflow-y-auto">
-          <div className="p-4 sm:p-6">
+          {/* Tab Content - Fixed container to prevent bar offset */}
+          <div className="flex-grow overflow-y-auto">
+            <div className="p-4 sm:p-6">
 
-            {/* WRITING SECTION */}
-            {activeSection === 'writing' && (
-              <div className="flex-grow flex flex-col">
-                <div className="flex justify-between items-center mb-3">
-                  <h3 className="font-bold text-slate-800 flex items-center">
-                    <Feather className="h-4 w-4 mr-2 text-indigo-500" />
-                    Part I Writing
-                  </h3>
-                  <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">建议用时 30 Min</span>
-                </div>
-                <div className="flex-grow bg-white rounded-lg border border-slate-200 shadow-sm p-4 flex flex-col relative focus-within:ring-2 focus-within:ring-indigo-100 transition-all" style={{ minHeight: '500px' }}>
-                  <textarea
-                    value={answers['writing'] || ''}
-                    onChange={(e) => updateAnswer('writing', e.target.value)}
-                    className="flex-grow w-full h-full resize-none focus:outline-none text-slate-700 font-serif leading-relaxed text-base"
-                    placeholder="在这里输入你的作文..."
-                    style={{ minHeight: '460px' }}
-                  />
-                  <div className="absolute bottom-2 right-4 text-xs text-slate-300 pointer-events-none bg-white/80 px-2 rounded">
-                    词数统计: {answers['writing']?.trim().split(/\s+/).filter(Boolean).length || 0}
+              {/* WRITING SECTION */}
+              {activeSection === 'writing' && (
+                <div className="flex-grow flex flex-col">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="font-bold text-slate-800 flex items-center">
+                      <Feather className="h-4 w-4 mr-2 text-indigo-500" />
+                      Part I Writing
+                    </h3>
+                    <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">建议用时 30 Min</span>
                   </div>
-                </div>
-              </div>
-            )}
-
-            {/* LISTENING SECTION */}
-            {activeSection === 'listening' && (
-              <div className="flex-grow">
-                <div className="flex justify-between items-center mb-3 bg-slate-50 py-2 border-b border-slate-200 px-2 sm:px-4">
-                  <h3 className="font-bold text-slate-800 flex items-center">
-                    <Headphones className="h-4 w-4 mr-2 text-indigo-500" />
-                    Part II Listening
-                  </h3>
-                  <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">25 Min / 25 题</span>
-                </div>
-
-                <div className="space-y-6">
-                  {/* Section A */}
-                  <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-                    <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 border-b border-slate-100 pb-2">Section A: News Reports (1-7)</h4>
-                    <div className="space-y-1">
-                      {Array.from({ length: 7 }, (_, i) => i + 1).map(num => (
-                        <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} />
-                      ))}
-                    </div>
-                  </div>
-                  {/* Section B */}
-                  <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-                    <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 border-b border-slate-100 pb-2">Section B: Conversations (8-15)</h4>
-                    <div className="space-y-1">
-                      {Array.from({ length: 8 }, (_, i) => i + 8).map(num => (
-                        <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} />
-                      ))}
-                    </div>
-                  </div>
-                  {/* Section C */}
-                  <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-                    <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 border-b border-slate-100 pb-2">Section C: Passages (16-25)</h4>
-                    <div className="space-y-1">
-                      {Array.from({ length: 10 }, (_, i) => i + 16).map(num => (
-                        <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} />
-                      ))}
+                  <div className="flex-grow bg-white rounded-lg border border-slate-200 shadow-sm p-4 flex flex-col relative focus-within:ring-2 focus-within:ring-indigo-100 transition-all" style={{ minHeight: '500px' }}>
+                    <textarea
+                      value={answers['writing'] || ''}
+                      onChange={(e) => updateAnswer('writing', e.target.value)}
+                      className="flex-grow w-full h-full resize-none focus:outline-none text-slate-700 leading-relaxed text-base"
+                      placeholder="在这里输入你的作文..."
+                      style={{ minHeight: '460px' }}
+                    />
+                    <div className="absolute bottom-2 right-4 text-xs text-slate-300 pointer-events-none bg-white/80 px-2 rounded">
+                      词数统计: {answers['writing']?.trim().split(/\s+/).filter(Boolean).length || 0}
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* READING SECTION */}
-            {activeSection === 'reading' && (
-              <div className="flex-grow">
-                <div className="flex justify-between items-center mb-3 bg-slate-50 py-2 border-b border-slate-200 px-2 sm:px-4">
-                  <h3 className="font-bold text-slate-800 flex items-center">
-                    <BookOpen className="h-4 w-4 mr-2 text-indigo-500" />
-                    Part III Reading
-                  </h3>
-                  <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">40 Min / 30 题</span>
-                </div>
+              {/* LISTENING SECTION */}
+              {activeSection === 'listening' && (
+                <div className="flex-grow">
+                  <div className="flex justify-between items-center mb-3 bg-slate-50 py-2 border-b border-slate-200 px-2 sm:px-4">
+                    <h3 className="font-bold text-slate-800 flex items-center">
+                      <Headphones className="h-4 w-4 mr-2 text-indigo-500" />
+                      Part II Listening
+                    </h3>
+                    <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">25 Min / 25 题</span>
+                  </div>
 
-                <div className="space-y-6">
-                  {/* Section A */}
-                  <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-                    <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 border-b border-slate-100 pb-2">Section A: Banked Cloze (26-35)</h4>
-                    <div className="bg-amber-50 text-amber-700 px-3 py-2 rounded text-xs mb-3 flex items-start">
-                      <AlertCircle className="h-3 w-3 mr-1 mt-0.5 flex-shrink-0" />
-                      选词填空 (15选10)，注意词性搭配
+                  <div className="space-y-6">
+                    {/* Section A */}
+                    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 border-b border-slate-100 pb-2">Section A: News Reports (1-7)</h4>
+                      <div className="space-y-1">
+                        {Array.from({ length: 7 }, (_, i) => i + 1).map(num => (
+                          <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} />
+                        ))}
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      {Array.from({ length: 10 }, (_, i) => i + 26).map(num => (
-                        <div key={num} className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 rounded px-2 transition-colors">
-                          <span className="w-8 text-sm font-mono font-bold text-slate-500 mb-2 sm:mb-0">{num}.</span>
-                          <div className="flex flex-wrap gap-1.5">
-                            {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'].map(opt => {
-                              const isSelected = answers[num] === opt;
-                              return (
-                                <button
-                                  key={opt}
-                                  onClick={() => toggleChoice(num, opt)}
-                                  className={`
+                    {/* Section B */}
+                    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 border-b border-slate-100 pb-2">Section B: Conversations (8-15)</h4>
+                      <div className="space-y-1">
+                        {Array.from({ length: 8 }, (_, i) => i + 8).map(num => (
+                          <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} />
+                        ))}
+                      </div>
+                    </div>
+                    {/* Section C */}
+                    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 border-b border-slate-100 pb-2">Section C: Passages (16-25)</h4>
+                      <div className="space-y-1">
+                        {Array.from({ length: 10 }, (_, i) => i + 16).map(num => (
+                          <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* READING SECTION */}
+              {activeSection === 'reading' && (
+                <div className="flex-grow">
+                  <div className="flex justify-between items-center mb-3 bg-slate-50 py-2 border-b border-slate-200 px-2 sm:px-4">
+                    <h3 className="font-bold text-slate-800 flex items-center">
+                      <BookOpen className="h-4 w-4 mr-2 text-indigo-500" />
+                      Part III Reading
+                    </h3>
+                    <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">40 Min / 30 题</span>
+                  </div>
+
+                  <div className="space-y-6">
+                    {/* Section A */}
+                    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 border-b border-slate-100 pb-2">Section A: Banked Cloze (26-35)</h4>
+                      <div className="bg-amber-50 text-amber-700 px-3 py-2 rounded text-xs mb-3 flex items-start">
+                        <AlertCircle className="h-3 w-3 mr-1 mt-0.5 flex-shrink-0" />
+                        选词填空 (15选10)，注意词性搭配
+                      </div>
+                      <div className="space-y-1">
+                        {Array.from({ length: 10 }, (_, i) => i + 26).map(num => (
+                          <div key={num} className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 rounded px-2 transition-colors">
+                            <span className="w-8 text-sm font-mono font-bold text-slate-500 mb-2 sm:mb-0">{num}.</span>
+                            <div className="flex flex-wrap gap-1.5">
+                              {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'].map(opt => {
+                                const isSelected = answers[num] === opt;
+                                return (
+                                  <button
+                                    key={opt}
+                                    onClick={() => toggleChoice(num, opt)}
+                                    className={`
                                         w-7 h-7 text-[10px] rounded border flex items-center justify-center transition-all
                                         ${isSelected
-                                      ? 'bg-indigo-600 border-indigo-600 text-white shadow'
-                                      : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-400 hover:text-indigo-600'
-                                    }
+                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow'
+                                        : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-400 hover:text-indigo-600'
+                                      }
                                       `}
-                                >
-                                  {opt}
-                                </button>
-                              )
-                            })}
+                                  >
+                                    {opt}
+                                  </button>
+                                )
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Section B */}
-                  <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-                    <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 border-b border-slate-100 pb-2">Section B: Matching (36-45)</h4>
-                    <div className="space-y-1">
-                      {Array.from({ length: 10 }, (_, i) => i + 36).map(num => (
-                        <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} options={['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M']} />
-                      ))}
+                    {/* Section B */}
+                    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 border-b border-slate-100 pb-2">Section B: Matching (36-45)</h4>
+                      <div className="space-y-1">
+                        {Array.from({ length: 10 }, (_, i) => i + 36).map(num => (
+                          <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} options={['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M']} />
+                        ))}
+                      </div>
                     </div>
-                  </div>
 
-                  {/* Section C */}
-                  <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-                    <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 border-b border-slate-100 pb-2">Section C: Careful Reading (46-55)</h4>
-                    <div className="space-y-1">
-                      {Array.from({ length: 10 }, (_, i) => i + 46).map(num => (
-                        <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} />
-                      ))}
+                    {/* Section C */}
+                    <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
+                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 border-b border-slate-100 pb-2">Section C: Careful Reading (46-55)</h4>
+                      <div className="space-y-1">
+                        {Array.from({ length: 10 }, (_, i) => i + 46).map(num => (
+                          <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} />
+                        ))}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {/* TRANSLATION SECTION */}
-            {activeSection === 'translation' && (
-              <div className="flex-grow flex flex-col">
-                <div className="flex justify-between items-center mb-3">
-                  <h3 className="font-bold text-slate-800 flex items-center">
-                    <Languages className="h-4 w-4 mr-2 text-indigo-500" />
-                    Part IV Translation
-                  </h3>
-                  <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">建议用时 30 Min</span>
+              {/* TRANSLATION SECTION */}
+              {activeSection === 'translation' && (
+                <div className="flex-grow flex flex-col">
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="font-bold text-slate-800 flex items-center">
+                      <Languages className="h-4 w-4 mr-2 text-indigo-500" />
+                      Part IV Translation
+                    </h3>
+                    <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">建议用时 30 Min</span>
+                  </div>
+                  <div className="flex-grow bg-white rounded-lg border border-slate-200 shadow-sm p-4 relative focus-within:ring-2 focus-within:ring-indigo-100 transition-all" style={{ minHeight: '500px' }}>
+                    <textarea
+                      value={answers['translation'] || ''}
+                      onChange={(e) => updateAnswer('translation', e.target.value)}
+                      className="flex-grow w-full resize-none focus:outline-none text-slate-700 leading-relaxed text-base"
+                      placeholder="在这里输入你的翻译..."
+                      style={{ minHeight: '460px' }}
+                    />
+                  </div>
                 </div>
-                <div className="flex-grow bg-white rounded-lg border border-slate-200 shadow-sm p-4 relative focus-within:ring-2 focus-within:ring-indigo-100 transition-all" style={{ minHeight: '500px' }}>
-                  <textarea
-                    value={answers['translation'] || ''}
-                    onChange={(e) => updateAnswer('translation', e.target.value)}
-                    className="flex-grow w-full h-full resize-none focus:outline-none text-slate-700 font-serif leading-relaxed text-base"
-                    placeholder="在这里输入你的翻译..."
-                    style={{ minHeight: '460px' }}
-                  />
-                </div>
-              </div>
-            )}
+              )}
 
-            {/* NOTES SECTION */}
-            {activeSection === 'notes' && (
-              <div className="flex-grow flex flex-col bg-yellow-50/60 rounded-lg overflow-hidden">
-                <div className="p-3 border-b border-yellow-200 bg-yellow-100/80 flex justify-between items-center">
-                  <span className="text-xs font-bold text-yellow-900 uppercase tracking-wide flex items-center">
-                    <PenLine className="h-3 w-3 mr-2" />
-                    草稿纸 & 单词本
-                    <span className="ml-2 text-[10px] font-normal text-yellow-800/80 hidden sm:inline">
-                      文本会自动保存
+              {/* NOTES SECTION */}
+              {activeSection === 'notes' && (
+                <div className="flex-grow flex flex-col bg-yellow-50/60 rounded-lg overflow-hidden">
+                  <div className="p-3 border-b border-yellow-200 bg-yellow-100/80 flex justify-between items-center">
+                    <span className="text-xs font-bold text-yellow-900 uppercase tracking-wide flex items-center">
+                      <PenLine className="h-3 w-3 mr-2" />
+                      草稿纸 & 单词本
+                      <span className="ml-2 text-[10px] font-normal text-yellow-800/80 hidden sm:inline">
+                        文本会自动保存
+                      </span>
                     </span>
-                  </span>
-                  <button
-                    onClick={() => setNotes('')}
-                    className="text-yellow-800/80 hover:text-yellow-900 p-1 rounded hover:bg-yellow-200/80"
-                    title="清空全部"
-                  >
-                    <Eraser className="h-4 w-4" />
-                  </button>
+                    <button
+                      onClick={() => setNotes('')}
+                      className="text-yellow-800/80 hover:text-yellow-900 p-1 rounded hover:bg-yellow-200/80"
+                      title="清空全部"
+                    >
+                      <Eraser className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <div className="flex-grow p-3 flex flex-col gap-3" style={{ minHeight: '500px' }}>
+                    <textarea
+                      value={notes}
+                      onChange={(e) => setNotes(e.target.value)}
+                      className="flex-grow w-full rounded-lg border border-yellow-200 bg-white/80 p-3 text-sm text-slate-800 leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-yellow-300"
+                      placeholder="在这里随手记笔记、单词或长难句。文本会自动保存。"
+                      style={{ minHeight: '460px' }}
+                    />
+                    {/* TODO: optional image preview area if later we store images separately */}
+                  </div>
                 </div>
-                <div className="flex-grow p-3 flex flex-col gap-3" style={{ minHeight: '500px' }}>
-                  <textarea
-                    value={notes}
-                    onChange={(e) => setNotes(e.target.value)}
-                    className="flex-grow w-full rounded-lg border border-yellow-200 bg-white/80 p-3 text-sm text-slate-800 leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-yellow-300"
-                    placeholder="在这里随手记笔记、单词或长难句。文本会自动保存。"
-                    style={{ minHeight: '460px' }}
-                  />
-                  {/* TODO: optional image preview area if later we store images separately */}
-                </div>
-              </div>
-            )}
+              )}
 
+            </div>
+          </div>
+
+          {/* Bottom Bar - Sticky at bottom */}
+          <div className="sticky bottom-0 bg-white border-t border-slate-200 p-3 flex justify-end items-center text-[11px] sm:text-xs text-slate-500 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-10">
+            <span className="flex items-center text-green-600">
+              <CheckCircle className="h-3 w-3 mr-1" />
+              已自动保存至本地
+            </span>
           </div>
         </div>
+      )
+      }
 
-        {/* Bottom Bar - Sticky at bottom */}
-        <div className="sticky bottom-0 bg-white border-t border-slate-200 p-3 flex justify-end items-center text-[11px] sm:text-xs text-slate-500 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-10">
-          <span className="flex items-center text-green-600">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            已自动保存至本地
-          </span>
-        </div>
-      </div>
-
-    </div>
+    </div >
   );
 };
 
