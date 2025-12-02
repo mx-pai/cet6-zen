@@ -3,18 +3,64 @@
 @tailwind utilities;
 
 /* Global tweaks for the CET-6 UI */
-html,
-body {
+html {
   height: 100%;
+  scroll-behavior: smooth;
 }
 
 body {
+  height: 100%;
   margin: 0;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
     "Segoe UI", sans-serif;
-  background-color: #f5f5f4; /* stone-100 */
+  background-color: #f5f5f4;
+  /* stone-100 */
 }
 
 #root {
   height: 100%;
+}
+
+/* Custom animations for bookshelf effects */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pullBook {
+  from {
+    transform: translateY(0) scale(1);
+  }
+
+  to {
+    transform: translateY(-4px) scale(1.02);
+  }
+}
+
+@keyframes shelfExpand {
+  from {
+    max-height: 0;
+    opacity: 0;
+  }
+
+  to {
+    max-height: 2000px;
+    opacity: 1;
+  }
+}
+
+/* Utility classes */
+.animate-slide-down {
+  animation: slideDown 0.3s ease-out;
+}
+
+.animate-pull-book {
+  animation: pullBook 0.2s ease-out forwards;
 }

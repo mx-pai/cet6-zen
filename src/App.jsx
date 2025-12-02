@@ -18,7 +18,7 @@ import {
   ZoomIn,
   ZoomOut
 } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 // --- Local Storage Helpers ---
 const STORAGE_KEY = 'cet6-zen-exams';
@@ -232,15 +232,15 @@ export default function CET6FocusMode() {
       const next = prev.map((exam) =>
         exam.id === examId
           ? {
-              ...exam,
-              userAnswers: answers,
-              notes,
-              annotations: annotations || exam.annotations || {},
-              elapsedSeconds: typeof elapsedSeconds === 'number'
-                ? elapsedSeconds
-                : exam.elapsedSeconds || 0,
-              lastUpdated: Date.now()
-            }
+            ...exam,
+            userAnswers: answers,
+            notes,
+            annotations: annotations || exam.annotations || {},
+            elapsedSeconds: typeof elapsedSeconds === 'number'
+              ? elapsedSeconds
+              : exam.elapsedSeconds || 0,
+            lastUpdated: Date.now()
+          }
           : exam
       );
       saveExamsToStorage(next);
@@ -343,11 +343,31 @@ export default function CET6FocusMode() {
 }
 
 // --- Dashboard Component ---
+const COLLAPSED_YEARS_KEY = 'cet6-zen-collapsed-years';
+
 const Dashboard = ({ exams, onOpen, onDelete, onCreate, onBulkImport }) => {
   const [showModal, setShowModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
-  const [collapsedYears, setCollapsedYears] = useState({});
+
+  // Load collapsed state from localStorage
+  const [collapsedYears, setCollapsedYears] = useState(() => {
+    try {
+      const saved = localStorage.getItem(COLLAPSED_YEARS_KEY);
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
   const [newTitle, setNewTitle] = useState('');
+
+  // Persist collapsed state to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem(COLLAPSED_YEARS_KEY, JSON.stringify(collapsedYears));
+    } catch (error) {
+      console.warn('Failed to save collapsed state:', error);
+    }
+  }, [collapsedYears]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -389,8 +409,8 @@ const Dashboard = ({ exams, onOpen, onDelete, onCreate, onBulkImport }) => {
     <div className="max-w-5xl mx-auto p-6 overflow-y-auto h-full">
       <div className="flex justify-between items-center mb-8">
         <div>
-           <h2 className="text-2xl font-bold text-slate-800">试卷记录库</h2>
-           <p className="text-slate-500 text-sm mt-1">上传 PDF (高清原生渲染)，无需担心浏览器拦截，即刻开始刷题。</p>
+          <h2 className="text-2xl font-bold text-slate-800">试卷记录库</h2>
+          <p className="text-slate-500 text-sm mt-1">上传 PDF (高清原生渲染)，无需担心浏览器拦截，即刻开始刷题。</p>
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -423,14 +443,31 @@ const Dashboard = ({ exams, onOpen, onDelete, onCreate, onBulkImport }) => {
           </button>
         </div>
       ) : (
-        <div className="space-y-6">
+        <div className="space-y-8">
           {sortedYears.map((yearKey) => {
             const examsInYear = groupedByYear[yearKey];
             const isCollapsed = !!collapsedYears[yearKey];
+
+            // Calculate completion stats for this year
+            const totalInYear = examsInYear.length;
+            const completedInYear = examsInYear.filter(exam => {
+              const totalItems = 57;
+              let answeredCount = 0;
+              if (exam.userAnswers) {
+                for (let i = 1; i <= 55; i++) {
+                  if (exam.userAnswers[i]) answeredCount++;
+                }
+                if (exam.userAnswers.writing?.trim().length > 10) answeredCount++;
+                if (exam.userAnswers.translation?.trim().length > 10) answeredCount++;
+              }
+              return answeredCount >= totalItems * 0.8; // 80% completion
+            }).length;
+
             return (
-              <div key={yearKey}>
+              <div key={yearKey} className="animate-slide-down">
+                {/* Bookshelf Header - Wood Texture */}
                 <div
-                  className="flex items-center justify-between mb-2 cursor-pointer select-none"
+                  className="relative mb-3 cursor-pointer select-none group overflow-hidden rounded-lg shadow-md hover:shadow-lg transition-all"
                   onClick={() =>
                     setCollapsedYears((prev) => ({
                       ...prev,
@@ -438,102 +475,160 @@ const Dashboard = ({ exams, onOpen, onDelete, onCreate, onBulkImport }) => {
                     }))
                   }
                 >
-                  <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 tracking-wide uppercase">
-                    <ChevronRight
-                      className={`h-3 w-3 transition-transform ${
-                        isCollapsed ? '' : 'rotate-90'
-                      }`}
-                    />
-                    <span>
-                      {yearKey === '未分组' ? '未识别年份' : `${yearKey} 年真题`}
-                    </span>
+                  {/* Wood grain background */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-amber-800 via-amber-700 to-amber-900 opacity-90"></div>
+                  <div className="absolute inset-0 opacity-20" style={{
+                    backgroundImage: `repeating-linear-gradient(
+                      90deg,
+                      transparent,
+                      transparent 2px,
+                      rgba(139, 69, 19, 0.3) 2px,
+                      rgba(139, 69, 19, 0.3) 4px
+                    )`
+                  }}></div>
+
+                  {/* Content */}
+                  <div className="relative px-5 py-3.5 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <ChevronRight
+                        className={`h-5 w-5 text-amber-100 transition-transform duration-300 ${isCollapsed ? '' : 'rotate-90'
+                          }`}
+                      />
+                      <div>
+                        <h3 className="text-base font-bold text-amber-50 tracking-wide">
+                          {yearKey === '未分组' ? '📚 未识别年份' : `📚 ${yearKey} 年真题书架`}
+                        </h3>
+                        <p className="text-xs text-amber-200/80 mt-0.5">
+                          {totalInYear} 套试卷 · {completedInYear} 套已完成
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Stats Badge */}
+                    <div className="flex items-center gap-2">
+                      <div className="bg-amber-950/40 backdrop-blur-sm px-3 py-1.5 rounded-full border border-amber-600/30">
+                        <span className="text-xs font-medium text-amber-100">
+                          {Math.round((completedInYear / totalInYear) * 100)}% 完成率
+                        </span>
+                      </div>
+                    </div>
                   </div>
-                  <span className="text-[11px] text-slate-400">
-                    {examsInYear.length} 套
-                  </span>
+
+                  {/* Bottom edge shadow for 3D effect */}
+                  <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-b from-transparent to-black/30"></div>
                 </div>
                 {!isCollapsed && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {examsInYear.map((exam) => {
-                    const totalItems = 55 + 2;
-                    let answeredCount = 0;
-                    if (exam.userAnswers) {
-                      for (let i = 1; i <= 55; i += 1) {
-                        if (exam.userAnswers[i]) answeredCount += 1;
-                      }
-                      if (
-                        exam.userAnswers.writing &&
-                        exam.userAnswers.writing.trim().length > 10
-                      ) {
-                        answeredCount += 1;
-                      }
-                      if (
-                        exam.userAnswers.translation &&
-                        exam.userAnswers.translation.trim().length > 10
-                      ) {
-                        answeredCount += 1;
-                      }
-                    }
+                  <div className="relative">
+                    {/* Shelf Board */}
+                    <div className="absolute top-0 left-0 right-0 h-3 bg-gradient-to-b from-stone-400 to-stone-500 rounded-t-sm shadow-inner"></div>
 
-                    const progress = Math.round(
-                      (answeredCount / totalItems) * 100
-                    );
-                    const createdAtMs =
-                      typeof exam.createdAt === 'number'
-                        ? exam.createdAt
-                        : exam.createdAt && exam.createdAt.seconds
-                        ? exam.createdAt.seconds * 1000
-                        : Date.now();
-                    const date = new Date(createdAtMs).toLocaleDateString();
+                    {/* Books Container - Styled like books on a shelf */}
+                    <div className="pt-4 pb-6 px-4 bg-gradient-to-b from-stone-100 to-stone-50 rounded-b-lg border-x-2 border-b-2 border-stone-300 shadow-lg">
+                      <div className="flex flex-wrap gap-3">
+                        {examsInYear.map((exam) => {
+                          const totalItems = 55 + 2;
+                          let answeredCount = 0;
+                          if (exam.userAnswers) {
+                            for (let i = 1; i <= 55; i += 1) {
+                              if (exam.userAnswers[i]) answeredCount += 1;
+                            }
+                            if (exam.userAnswers.writing?.trim().length > 10) answeredCount += 1;
+                            if (exam.userAnswers.translation?.trim().length > 10) answeredCount += 1;
+                          }
 
-                    return (
-                      <div
-                        key={exam.id}
-                        onClick={() => onOpen(exam)}
-                        className="bg-white p-5 rounded-xl border border-slate-200 hover:border-indigo-400 hover:shadow-md transition-all cursor-pointer group"
-                      >
-                        <div className="flex justify-between items-start mb-3">
-                          <div className="flex flex-col space-y-1">
-                            <h3 className="font-semibold text-slate-800 line-clamp-1 text-lg group-hover:text-indigo-600 transition-colors">
-                              {exam.title}
-                            </h3>
-                            {exam.sourceFileName && (
-                              <p className="text-[11px] text-slate-400 truncate max-w-[14rem]">
-                                文件：{exam.sourceFileName}
-                              </p>
-                            )}
-                          </div>
-                          <button
-                            onClick={(e) => onDelete(exam.id, e)}
-                            className="text-slate-300 hover:text-red-500 transition-colors p-1"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
+                          const progress = Math.round((answeredCount / totalItems) * 100);
+                          const createdAtMs =
+                            typeof exam.createdAt === 'number'
+                              ? exam.createdAt
+                              : exam.createdAt?.seconds
+                                ? exam.createdAt.seconds * 1000
+                                : Date.now();
+                          const date = new Date(createdAtMs).toLocaleDateString('zh-CN', {
+                            month: 'numeric',
+                            day: 'numeric'
+                          });
 
-                        <div className="flex items-center justify-between text-xs text-slate-500 mb-4">
-                          <span className="flex items-center">
-                            <Clock className="h-3 w-3 mr-1" /> {date}
-                          </span>
-                          <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded">
-                            标准六级
-                          </span>
-                        </div>
+                          // Color variations for book spines
+                          const bookColors = [
+                            'from-blue-600 to-blue-800',
+                            'from-green-600 to-green-800',
+                            'from-purple-600 to-purple-800',
+                            'from-red-600 to-red-800',
+                            'from-indigo-600 to-indigo-800',
+                            'from-pink-600 to-pink-800',
+                            'from-teal-600 to-teal-800',
+                          ];
+                          const colorClass = bookColors[Math.abs(exam.id.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0)) % bookColors.length];
 
-                        <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
-                          <div
-                            className="bg-indigo-500 h-full transition-all"
-                            style={{ width: `${progress}%` }}
-                          />
-                        </div>
-                        <div className="mt-2 text-xs text-right text-indigo-600 font-medium">
-                          {progress}% 完成
-                        </div>
+                          return (
+                            <div
+                              key={exam.id}
+                              onClick={() => onOpen(exam)}
+                              className="relative group cursor-pointer transform transition-all duration-200 hover:-translate-y-2 hover:scale-105"
+                              style={{ perspective: '1000px' }}
+                            >
+                              {/* Book Spine */}
+                              <div className={`relative w-32 sm:w-40 h-56 bg-gradient-to-r ${colorClass} rounded-sm shadow-lg group-hover:shadow-2xl transition-shadow overflow-hidden`}>
+                                {/* Book texture overlay */}
+                                <div className="absolute inset-0 opacity-10" style={{
+                                  backgroundImage: `repeating-linear-gradient(
+                                    0deg,
+                                    transparent,
+                                    transparent 1px,
+                                    rgba(255, 255, 255, 0.3) 1px,
+                                    rgba(255, 255, 255, 0.3) 2px
+                                  )`
+                                }}></div>
+
+                                {/* Spine Label - Vertical Text */}
+                                <div className="absolute inset-0 flex flex-col items-center justify-center p-3 text-white">
+                                  <div className="transform flex flex-col items-center gap-4">
+                                    {/* Title */}
+                                    <h3 className="text-sm font-bold text-center leading-tight line-clamp-4 px-1">
+                                      {exam.title}
+                                    </h3>
+
+                                    {/* Date badge */}
+                                    <div className="bg-white/20 backdrop-blur-sm px-2 py-1 rounded text-xs font-mono">
+                                      {date}
+                                    </div>
+
+                                    {/* Progress indicator */}
+                                    <div className="w-full bg-white/20 rounded-full h-1.5 overflow-hidden">
+                                      <div
+                                        className="bg-white h-full transition-all"
+                                        style={{ width: `${progress}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-xs font-medium">
+                                      {progress}%
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Book edge highlight */}
+                                <div className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-r from-white/40 to-transparent"></div>
+                                <div className="absolute right-0 top-0 bottom-0 w-1 bg-gradient-to-l from-black/40 to-transparent"></div>
+
+                                {/* Delete button - appears on hover */}
+                                <button
+                                  onClick={(e) => onDelete(exam.id, e)}
+                                  className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-red-500 hover:bg-red-600 text-white p-1.5 rounded-full shadow-lg z-10"
+                                  title="删除"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </button>
+                              </div>
+
+                              {/* Book shadow on shelf */}
+                              <div className="absolute -bottom-1 left-0 right-0 h-1 bg-black/20 blur-sm rounded-full transform scale-95"></div>
+                            </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -542,7 +637,16 @@ const Dashboard = ({ exams, onOpen, onDelete, onCreate, onBulkImport }) => {
 
       {/* Create Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowModal(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setShowModal(false);
+          }}
+          tabIndex={-1}
+        >
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 animate-in fade-in zoom-in duration-200">
             <h3 className="text-lg font-bold text-slate-800 mb-4">创建新试卷</h3>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -562,10 +666,10 @@ const Dashboard = ({ exams, onOpen, onDelete, onCreate, onBulkImport }) => {
               <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 text-xs text-slate-500">
                 <p className="font-medium text-slate-700 mb-1">系统将自动生成标准答题卡：</p>
                 <ul className="list-disc pl-4 space-y-1">
-                   <li>Part I: 写作 (30min)</li>
-                   <li>Part II: 听力 (25min, 25题)</li>
-                   <li>Part III: 阅读 (40min, 30题)</li>
-                   <li>Part IV: 翻译 (30min)</li>
+                  <li>Part I: 写作 (30min)</li>
+                  <li>Part II: 听力 (25min, 25题)</li>
+                  <li>Part III: 阅读 (40min, 30题)</li>
+                  <li>Part IV: 翻译 (30min)</li>
                 </ul>
               </div>
 
@@ -591,7 +695,16 @@ const Dashboard = ({ exams, onOpen, onDelete, onCreate, onBulkImport }) => {
 
       {/* Bulk Import Modal */}
       {showBulkModal && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowBulkModal(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setShowBulkModal(false);
+          }}
+          tabIndex={-1}
+        >
           <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 animate-in fade-in zoom-in duration-200">
             <h3 className="text-lg font-bold text-slate-800 mb-2">
               批量导入真题 PDF
@@ -751,9 +864,9 @@ const PdfViewer = ({ fileUrl, pdfLibLoaded, annotations = {}, onAnnotationsChang
     const pageStrokes = annotations[pageNum] || [];
     const strokesToDraw =
       isDrawing &&
-      currentStroke &&
-      currentStroke.points &&
-      currentStroke.points.length
+        currentStroke &&
+        currentStroke.points &&
+        currentStroke.points.length
         ? [...pageStrokes, currentStroke]
         : pageStrokes;
 
@@ -776,10 +889,15 @@ const PdfViewer = ({ fileUrl, pdfLibLoaded, annotations = {}, onAnnotationsChang
         ctx.lineWidth = 5 * baseLineWidth;
       } else {
         ctx.globalCompositeOperation = 'source-over';
-        ctx.strokeStyle =
-          color === 'blue'
-            ? 'rgba(37, 99, 235, 0.95)' // blue-600
-            : 'rgba(239, 68, 68, 0.95)'; // red-500
+        // Support all 5 pen colors
+        const colorMap = {
+          red: 'rgba(239, 68, 68, 0.95)',      // red-500
+          blue: 'rgba(37, 99, 235, 0.95)',     // blue-600
+          green: 'rgba(16, 185, 129, 0.95)',   // green-500
+          purple: 'rgba(147, 51, 234, 0.95)',  // purple-600
+          orange: 'rgba(249, 115, 22, 0.95)',  // orange-600
+        };
+        ctx.strokeStyle = colorMap[color] || colorMap.red; // default to red
         ctx.lineWidth = 2.2 * baseLineWidth;
       }
 
@@ -930,7 +1048,12 @@ const PdfViewer = ({ fileUrl, pdfLibLoaded, annotations = {}, onAnnotationsChang
   };
 
   const changePage = (offset) => {
-    setPageNum(prev => Math.min(Math.max(1, prev + offset), numPages));
+    setPageNum(prev => {
+      const newPage = prev + offset;
+      const clampedPage = Math.min(Math.max(1, newPage), numPages || prev);
+      console.log(`Page change: ${prev} -> ${clampedPage} (offset: ${offset}, numPages: ${numPages})`);
+      return clampedPage;
+    });
   };
 
   const clearCurrentPageAnnotations = () => {
@@ -981,21 +1104,29 @@ const PdfViewer = ({ fileUrl, pdfLibLoaded, annotations = {}, onAnnotationsChang
       <div className="flex items-center justify-between px-4 py-2 bg-slate-800 text-white shadow-md z-10 shrink-0 border-b border-slate-600">
         <div className="flex items-center space-x-2">
           <button
-            onClick={() => changePage(-1)}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              changePage(-1);
+            }}
             disabled={pageNum <= 1}
-            className="p-1.5 rounded hover:bg-slate-700 disabled:opacity-30 transition-colors"
-            title="上一页"
+            className="p-1.5 rounded hover:bg-slate-700 disabled:opacity-30 transition-colors disabled:cursor-not-allowed"
+            title="上一页 (←)"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
           <span className="text-sm font-mono min-w-[4rem] text-center bg-slate-900/50 rounded py-0.5 px-2">
-             {pageNum} / {numPages || '-'}
+            {pageNum} / {numPages || '-'}
           </span>
           <button
-            onClick={() => changePage(1)}
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              changePage(1);
+            }}
             disabled={pageNum >= numPages}
-            className="p-1.5 rounded hover:bg-slate-700 disabled:opacity-30 transition-colors"
-            title="下一页"
+            className="p-1.5 rounded hover:bg-slate-700 disabled:opacity-30 transition-colors disabled:cursor-not-allowed"
+            title="下一页 (→)"
           >
             <ChevronRight className="h-5 w-5" />
           </button>
@@ -1022,75 +1153,77 @@ const PdfViewer = ({ fileUrl, pdfLibLoaded, annotations = {}, onAnnotationsChang
             </button>
           </div>
 
-          <div className="flex items-center bg-slate-900/50 rounded px-1 space-x-1">
+          {/* Enhanced PDF Annotation Toolbar */}
+          <div className="flex items-center bg-slate-900/50 rounded px-2 space-x-1.5">
+            {/* Tool Buttons */}
             <button
               onClick={() =>
                 setTool((prev) => (prev === 'pen' ? 'none' : 'pen'))
               }
-              className={`flex items-center px-2 py-1 rounded text-xs transition-colors ${
-                tool === 'pen'
-                  ? 'bg-slate-100 text-slate-900'
-                  : 'text-slate-200 hover:bg-slate-700'
-              }`}
-              title="钢笔标记"
+              className={`flex items-center px-2.5 py-1.5 rounded text-xs font-medium transition-all ${tool === 'pen'
+                ? 'bg-indigo-500 text-white shadow-lg scale-105'
+                : 'text-slate-200 hover:bg-slate-700 hover:text-white'
+                }`}
+              title="钢笔标记 (画线条)"
             >
               <PenLine className="h-4 w-4" />
-              <span className="hidden sm:inline ml-1">钢笔</span>
+              <span className="hidden sm:inline ml-1.5">钢笔</span>
             </button>
             <button
               onClick={() =>
                 setTool((prev) => (prev === 'highlight' ? 'none' : 'highlight'))
               }
-              className={`hidden sm:flex items-center px-2 py-1 rounded text-xs transition-colors ${
-                tool === 'highlight'
-                  ? 'bg-amber-300 text-amber-950'
-                  : 'text-slate-200 hover:bg-slate-700'
-              }`}
-              title="高亮划线"
+              className={`flex items-center px-2.5 py-1.5 rounded text-xs font-medium transition-all ${tool === 'highlight'
+                ? 'bg-yellow-400 text-yellow-950 shadow-lg scale-105'
+                : 'text-slate-200 hover:bg-slate-700 hover:text-white'
+                }`}
+              title="高亮划线 (荧光笔效果)"
             >
-              <span className="w-3 h-3 rounded-sm bg-amber-300 mr-1 border border-amber-400" />
-              高亮
+              <span className="w-3 h-3 rounded-sm bg-yellow-400 mr-1 border border-yellow-500" />
+              <span className="hidden sm:inline">高亮</span>
             </button>
             <button
               onClick={() =>
                 setTool((prev) => (prev === 'eraser' ? 'none' : 'eraser'))
               }
-              className={`flex items-center px-2 py-1 rounded text-xs transition-colors ${
-                tool === 'eraser'
-                  ? 'bg-slate-100 text-slate-900'
-                  : 'text-slate-200 hover:bg-slate-700'
-              }`}
-              title="橡皮擦（点按要擦除的标记）"
+              className={`flex items-center px-2.5 py-1.5 rounded text-xs font-medium transition-all ${tool === 'eraser'
+                ? 'bg-red-500 text-white shadow-lg scale-105'
+                : 'text-slate-200 hover:bg-slate-700 hover:text-white'
+                }`}
+              title="橡皮擦 (点击标记删除)"
             >
-              <Eraser className="h-3 w-3" />
-              <span className="hidden sm:inline ml-1">橡皮</span>
+              <Eraser className="h-4 w-4" />
+              <span className="hidden sm:inline ml-1.5">橡皮</span>
             </button>
-            <div className="flex items-center border-l border-slate-700/60 pl-1 ml-0.5 space-x-0.5">
-              <button
-                onClick={() => setPenColor('red')}
-                className={`w-4 h-4 rounded-full border ${
-                  penColor === 'red'
-                    ? 'border-white ring-1 ring-white'
-                    : 'border-slate-500'
-                }`}
-                style={{ backgroundColor: '#ef4444' }}
-                title="红色钢笔"
-              />
-              <button
-                onClick={() => setPenColor('blue')}
-                className={`w-4 h-4 rounded-full border ${
-                  penColor === 'blue'
-                    ? 'border-white ring-1 ring-white'
-                    : 'border-slate-500'
-                }`}
-                style={{ backgroundColor: '#2563eb' }}
-                title="蓝色钢笔"
-              />
+
+            {/* Color Palette - More colors */}
+            <div className="flex items-center border-l border-slate-700/60 pl-2 ml-1 space-x-1">
+              <span className="text-[10px] text-slate-400 hidden sm:inline">颜色:</span>
+              {[
+                { color: 'red', hex: '#ef4444', name: '红' },
+                { color: 'blue', hex: '#2563eb', name: '蓝' },
+                { color: 'green', hex: '#10b981', name: '绿' },
+                { color: 'purple', hex: '#9333ea', name: '紫' },
+                { color: 'orange', hex: '#f97316', name: '橙' },
+              ].map(({ color, hex, name }) => (
+                <button
+                  key={color}
+                  onClick={() => setPenColor(color)}
+                  className={`w-5 h-5 rounded-full border-2 transition-all hover:scale-110 ${penColor === color
+                    ? 'border-white ring-2 ring-white/50 scale-110'
+                    : 'border-slate-600 hover:border-slate-400'
+                    }`}
+                  style={{ backgroundColor: hex }}
+                  title={`${name}色钢笔`}
+                />
+              ))}
             </div>
+
+            {/* Clear button */}
             <button
               onClick={clearCurrentPageAnnotations}
               disabled={!(annotations[pageNum] && annotations[pageNum].length)}
-              className="p-1.5 rounded text-xs text-slate-200 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-default"
+              className="p-1.5 rounded text-xs text-slate-200 hover:bg-red-600 hover:text-white disabled:opacity-30 disabled:cursor-not-allowed transition-all border-l border-slate-700/60 ml-1 pl-2"
               title="清除当前页全部标记"
             >
               <Trash2 className="h-4 w-4" />
@@ -1102,21 +1235,20 @@ const PdfViewer = ({ fileUrl, pdfLibLoaded, annotations = {}, onAnnotationsChang
       {/* Canvas Container */}
       <div className="flex-grow overflow-auto flex justify-center bg-slate-500/50 p-4 sm:p-8">
         <div className="relative shadow-2xl ring-1 ring-black/10">
-           <canvas ref={canvasRef} className="block bg-white" />
-           <canvas
-             ref={overlayRef}
-             className={`absolute inset-0 ${
-               tool === 'none' ? 'cursor-default' : 'cursor-crosshair'
-             }`}
-             onMouseDown={handlePointerDown}
-             onMouseMove={handlePointerMove}
-             onMouseUp={finishStroke}
-             onMouseLeave={finishStroke}
-             onTouchStart={handlePointerDown}
-             onTouchMove={handlePointerMove}
-             onTouchEnd={finishStroke}
-             style={{ touchAction: 'none' }}
-           />
+          <canvas ref={canvasRef} className="block bg-white" />
+          <canvas
+            ref={overlayRef}
+            className={`absolute inset-0 ${tool === 'none' ? 'cursor-default' : 'cursor-crosshair'
+              }`}
+            onMouseDown={handlePointerDown}
+            onMouseMove={handlePointerMove}
+            onMouseUp={finishStroke}
+            onMouseLeave={finishStroke}
+            onTouchStart={handlePointerDown}
+            onTouchMove={handlePointerMove}
+            onTouchEnd={finishStroke}
+            style={{ touchAction: 'none' }}
+          />
         </div>
       </div>
     </div>
@@ -1226,55 +1358,55 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
       >
         {!fileUrl ? (
           <div className="flex-grow flex flex-col items-center justify-center p-8 text-slate-500 bg-slate-200">
-             <div className="bg-white p-8 rounded-2xl shadow-sm text-center max-w-md border border-slate-300">
-                <Upload className="h-12 w-12 text-indigo-400 mx-auto mb-4" />
-                <h3 className="text-lg font-bold text-slate-800 mb-2">上传试卷 PDF</h3>
-                <p className="text-sm mb-6">采用原生 JS 渲染，高清无损，永不被拦截。</p>
-                <label className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white rounded-lg cursor-pointer hover:bg-indigo-700 shadow transition-colors font-medium">
-                  <input type="file" accept=".pdf" className="hidden" onChange={handleFileChange} />
-                  <span>选择 PDF 试卷</span>
-                </label>
-             </div>
+            <div className="bg-white p-8 rounded-2xl shadow-sm text-center max-w-md border border-slate-300">
+              <Upload className="h-12 w-12 text-indigo-400 mx-auto mb-4" />
+              <h3 className="text-lg font-bold text-slate-800 mb-2">上传试卷 PDF</h3>
+              <p className="text-sm mb-6">采用原生 JS 渲染，高清无损，永不被拦截。</p>
+              <label className="inline-flex items-center px-6 py-3 bg-indigo-600 text-white rounded-lg cursor-pointer hover:bg-indigo-700 shadow transition-colors font-medium">
+                <input type="file" accept=".pdf" className="hidden" onChange={handleFileChange} />
+                <span>选择 PDF 试卷</span>
+              </label>
+            </div>
           </div>
         ) : (
           <div className="w-full h-full relative group flex flex-col">
-             <PdfViewer
-               fileUrl={fileUrl}
-               pdfLibLoaded={pdfLibLoaded}
-               annotations={annotations}
-               onAnnotationsChange={setAnnotations}
-             />
+            <PdfViewer
+              fileUrl={fileUrl}
+              pdfLibLoaded={pdfLibLoaded}
+              annotations={annotations}
+              onAnnotationsChange={setAnnotations}
+            />
 
-             {/* Floating Re-upload Button */}
-             <div className="absolute bottom-6 left-6 opacity-0 group-hover:opacity-100 transition-opacity z-50">
-                <label className="flex items-center px-4 py-2 bg-slate-900/90 text-white text-xs rounded-full cursor-pointer hover:bg-black shadow-xl backdrop-blur-sm border border-slate-700 font-medium">
-                  <Upload className="h-3 w-3 mr-2" />
-                  换一份
-                  <input type="file" accept=".pdf" className="hidden" onChange={handleFileChange} />
-                </label>
-             </div>
+            {/* Floating Re-upload Button */}
+            <div className="absolute bottom-6 left-6 opacity-0 group-hover:opacity-100 transition-opacity z-50">
+              <label className="flex items-center px-4 py-2 bg-slate-900/90 text-white text-xs rounded-full cursor-pointer hover:bg-black shadow-xl backdrop-blur-sm border border-slate-700 font-medium">
+                <Upload className="h-3 w-3 mr-2" />
+                换一份
+                <input type="file" accept=".pdf" className="hidden" onChange={handleFileChange} />
+              </label>
+            </div>
           </div>
         )}
       </div>
 
       {/* RESIZER HANDLE */}
       <div className="w-1 bg-slate-300 hover:bg-indigo-400 cursor-col-resize flex items-center justify-center z-20 hover:w-2 transition-all"
-           onMouseDown={(e) => {
-             const startX = e.clientX;
-             const startWidth = rightPanelWidth;
-             const handleMouseMove = (moveEvent) => {
-               const delta = startX - moveEvent.clientX;
-               const totalWidth = document.body.clientWidth;
-               const newWidth = startWidth + (delta / totalWidth) * 100;
-               if (newWidth > 25 && newWidth < 75) setRightPanelWidth(newWidth);
-             };
-             const handleMouseUp = () => {
-               document.removeEventListener('mousemove', handleMouseMove);
-               document.removeEventListener('mouseup', handleMouseUp);
-             };
-             document.addEventListener('mousemove', handleMouseMove);
-             document.addEventListener('mouseup', handleMouseUp);
-           }}
+        onMouseDown={(e) => {
+          const startX = e.clientX;
+          const startWidth = rightPanelWidth;
+          const handleMouseMove = (moveEvent) => {
+            const delta = startX - moveEvent.clientX;
+            const totalWidth = document.body.clientWidth;
+            const newWidth = startWidth + (delta / totalWidth) * 100;
+            if (newWidth > 25 && newWidth < 75) setRightPanelWidth(newWidth);
+          };
+          const handleMouseUp = () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+          };
+          document.addEventListener('mousemove', handleMouseMove);
+          document.addEventListener('mouseup', handleMouseUp);
+        }}
       >
         <div className="w-1 h-8 bg-slate-400 rounded-full"></div>
       </div>
@@ -1284,8 +1416,8 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
         className="flex flex-col h-full bg-white border-l border-slate-200 shadow-xl z-20"
         style={{ width: `${rightPanelWidth}%` }}
       >
-        {/* Right panel header */}
-        <div className="flex items-center justify-between px-3 py-2 border-b border-slate-200 bg-white">
+        {/* Right panel header - STICKY */}
+        <div className="sticky top-0 z-20 flex items-center justify-between px-3 py-2 border-b border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col">
             <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wide">
               CET-6 Focus · Answer Sheet
@@ -1312,82 +1444,82 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
             </div>
           </div>
           <button
-            onClick={onBack}
-            className="flex items-center px-2.5 py-1.5 bg-slate-900 text-white text-[11px] sm:text-xs rounded-full hover:bg-black transition-colors shadow-sm"
+            onClick={() => {
+              if (window.confirm('确定返回题库吗？您的答案已自动保存。')) {
+                onBack();
+              }
+            }}
+            className="flex items-center px-3 py-2 bg-slate-900 text-white text-xs rounded-lg hover:bg-black transition-colors shadow-sm font-medium"
           >
-            <ArrowUpCircle className="h-3 w-3 mr-1" />
+            <ArrowUpCircle className="h-4 w-4 mr-1.5" />
             返回题库
           </button>
         </div>
 
-        {/* Navigation Tabs */}
-        <div className="flex border-b border-slate-200 bg-slate-50 overflow-x-auto">
-           {[
-             { id: 'writing', icon: Feather, label: '作文' },
-             { id: 'listening', icon: Headphones, label: '听力' },
-             { id: 'reading', icon: BookOpen, label: '阅读' },
-             { id: 'translation', icon: Languages, label: '翻译' },
-             { id: 'notes', icon: PenLine, label: '草稿' },
-           ].map(tab => (
-             <button
-               key={tab.id}
-               onClick={() => setActiveSection(tab.id)}
-               className={`
-                 flex-1 py-3 px-2 min-w-[4rem] text-xs sm:text-sm font-medium flex flex-col sm:flex-row items-center justify-center transition-colors border-b-2
+        {/* Navigation Tabs - STICKY to prevent offset */}
+        <div className="sticky top-0 z-10 flex border-b border-slate-200 bg-slate-50 overflow-x-auto shadow-sm">
+          {[
+            { id: 'writing', icon: Feather, label: '作文' },
+            { id: 'listening', icon: Headphones, label: '听力' },
+            { id: 'reading', icon: BookOpen, label: '阅读' },
+            { id: 'translation', icon: Languages, label: '翻译' },
+            { id: 'notes', icon: PenLine, label: '草稿' },
+          ].map(tab => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveSection(tab.id)}
+              className={`
+                 flex-1 py-3 px-2 min-w-[4rem] text-xs sm:text-sm font-medium flex flex-col sm:flex-row items-center justify-center transition-all border-b-2
                  ${activeSection === tab.id
-                   ? 'text-indigo-600 border-indigo-600 bg-white'
-                   : 'text-slate-500 border-transparent hover:bg-slate-100 hover:text-slate-700'
-                 }
+                  ? 'text-indigo-600 border-indigo-600 bg-white shadow-sm'
+                  : 'text-slate-500 border-transparent hover:bg-slate-100 hover:text-slate-700'
+                }
                `}
-             >
-               <tab.icon className="h-4 w-4 sm:mr-2 mb-1 sm:mb-0" />
-               {tab.label}
-             </button>
-           ))}
+            >
+              <tab.icon className="h-4 w-4 sm:mr-2 mb-1 sm:mb-0" />
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {/* Tab Content */}
-        <div className="flex-grow overflow-hidden flex flex-col bg-slate-50/30 p-4 sm:p-6">
+        {/* Tab Content - Fixed container to prevent bar offset */}
+        <div className="flex-grow overflow-y-auto">
+          <div className="p-4 sm:p-6">
 
-           {/* WRITING SECTION */}
-           {activeSection === 'writing' && (
-             <div
-               ref={sectionScrollRef}
-               className="flex-grow flex flex-col overflow-y-auto"
-             >
+            {/* WRITING SECTION */}
+            {activeSection === 'writing' && (
+              <div className="flex-grow flex flex-col">
                 <div className="flex justify-between items-center mb-3">
-                   <h3 className="font-bold text-slate-800 flex items-center">
-                     <Feather className="h-4 w-4 mr-2 text-indigo-500" />
-                     Part I Writing
-                   </h3>
-                   <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">建议用时 30 Min</span>
+                  <h3 className="font-bold text-slate-800 flex items-center">
+                    <Feather className="h-4 w-4 mr-2 text-indigo-500" />
+                    Part I Writing
+                  </h3>
+                  <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">建议用时 30 Min</span>
                 </div>
-                <div className="flex-grow bg-white rounded-lg border border-slate-200 shadow-sm p-4 flex flex-col relative focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
-                   <textarea
-                     value={answers['writing'] || ''}
-                     onChange={(e) => updateAnswer('writing', e.target.value)}
-                     className="flex-grow w-full h-full resize-none focus:outline-none text-slate-700 font-serif leading-relaxed text-lg"
-                     placeholder="在这里输入你的作文..."
-                   />
-                   <div className="absolute bottom-2 right-4 text-xs text-slate-300 pointer-events-none bg-white/80 px-2 rounded">
-                      词数统计: {answers['writing']?.trim().split(/\s+/).filter(Boolean).length || 0}
-                   </div>
+                <div className="flex-grow bg-white rounded-lg border border-slate-200 shadow-sm p-4 flex flex-col relative focus-within:ring-2 focus-within:ring-indigo-100 transition-all" style={{ minHeight: '500px' }}>
+                  <textarea
+                    value={answers['writing'] || ''}
+                    onChange={(e) => updateAnswer('writing', e.target.value)}
+                    className="flex-grow w-full h-full resize-none focus:outline-none text-slate-700 font-serif leading-relaxed text-base"
+                    placeholder="在这里输入你的作文..."
+                    style={{ minHeight: '460px' }}
+                  />
+                  <div className="absolute bottom-2 right-4 text-xs text-slate-300 pointer-events-none bg-white/80 px-2 rounded">
+                    词数统计: {answers['writing']?.trim().split(/\s+/).filter(Boolean).length || 0}
+                  </div>
                 </div>
-             </div>
-           )}
+              </div>
+            )}
 
-           {/* LISTENING SECTION */}
-           {activeSection === 'listening' && (
-             <div
-               ref={sectionScrollRef}
-               className="flex-grow overflow-y-auto"
-             >
+            {/* LISTENING SECTION */}
+            {activeSection === 'listening' && (
+              <div className="flex-grow">
                 <div className="flex justify-between items-center mb-3 bg-slate-50 py-2 border-b border-slate-200 px-2 sm:px-4">
-                   <h3 className="font-bold text-slate-800 flex items-center">
-                     <Headphones className="h-4 w-4 mr-2 text-indigo-500" />
-                     Part II Listening
-                   </h3>
-                   <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">25 Min / 25 题</span>
+                  <h3 className="font-bold text-slate-800 flex items-center">
+                    <Headphones className="h-4 w-4 mr-2 text-indigo-500" />
+                    Part II Listening
+                  </h3>
+                  <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">25 Min / 25 题</span>
                 </div>
 
                 <div className="space-y-6">
@@ -1395,45 +1527,42 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
                   <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
                     <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 border-b border-slate-100 pb-2">Section A: News Reports (1-7)</h4>
                     <div className="space-y-1">
-                       {Array.from({length: 7}, (_, i) => i + 1).map(num => (
-                         <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} />
-                       ))}
+                      {Array.from({ length: 7 }, (_, i) => i + 1).map(num => (
+                        <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} />
+                      ))}
                     </div>
                   </div>
                   {/* Section B */}
                   <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
                     <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 border-b border-slate-100 pb-2">Section B: Conversations (8-15)</h4>
                     <div className="space-y-1">
-                       {Array.from({length: 8}, (_, i) => i + 8).map(num => (
-                         <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} />
-                       ))}
+                      {Array.from({ length: 8 }, (_, i) => i + 8).map(num => (
+                        <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} />
+                      ))}
                     </div>
                   </div>
                   {/* Section C */}
                   <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
                     <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 border-b border-slate-100 pb-2">Section C: Passages (16-25)</h4>
                     <div className="space-y-1">
-                       {Array.from({length: 10}, (_, i) => i + 16).map(num => (
-                         <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} />
-                       ))}
+                      {Array.from({ length: 10 }, (_, i) => i + 16).map(num => (
+                        <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} />
+                      ))}
                     </div>
                   </div>
                 </div>
-             </div>
-           )}
+              </div>
+            )}
 
-           {/* READING SECTION */}
-           {activeSection === 'reading' && (
-             <div
-               ref={sectionScrollRef}
-               className="flex-grow overflow-y-auto"
-             >
+            {/* READING SECTION */}
+            {activeSection === 'reading' && (
+              <div className="flex-grow">
                 <div className="flex justify-between items-center mb-3 bg-slate-50 py-2 border-b border-slate-200 px-2 sm:px-4">
-                   <h3 className="font-bold text-slate-800 flex items-center">
-                     <BookOpen className="h-4 w-4 mr-2 text-indigo-500" />
-                     Part III Reading
-                   </h3>
-                   <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">40 Min / 30 题</span>
+                  <h3 className="font-bold text-slate-800 flex items-center">
+                    <BookOpen className="h-4 w-4 mr-2 text-indigo-500" />
+                    Part III Reading
+                  </h3>
+                  <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">40 Min / 30 题</span>
                 </div>
 
                 <div className="space-y-6">
@@ -1441,35 +1570,35 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
                   <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
                     <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 border-b border-slate-100 pb-2">Section A: Banked Cloze (26-35)</h4>
                     <div className="bg-amber-50 text-amber-700 px-3 py-2 rounded text-xs mb-3 flex items-start">
-                       <AlertCircle className="h-3 w-3 mr-1 mt-0.5 flex-shrink-0" />
-                       选词填空 (15选10)，注意词性搭配
+                      <AlertCircle className="h-3 w-3 mr-1 mt-0.5 flex-shrink-0" />
+                      选词填空 (15选10)，注意词性搭配
                     </div>
                     <div className="space-y-1">
-                       {Array.from({length: 10}, (_, i) => i + 26).map(num => (
-                         <div key={num} className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 rounded px-2 transition-colors">
-                           <span className="w-8 text-sm font-mono font-bold text-slate-500 mb-2 sm:mb-0">{num}.</span>
-                           <div className="flex flex-wrap gap-1.5">
-                              {['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'].map(opt => {
-                                 const isSelected = answers[num] === opt;
-                                 return (
-                                    <button
-                                      key={opt}
-                                      onClick={() => toggleChoice(num, opt)}
-                                      className={`
+                      {Array.from({ length: 10 }, (_, i) => i + 26).map(num => (
+                        <div key={num} className="flex flex-col sm:flex-row items-start sm:items-center justify-between py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 rounded px-2 transition-colors">
+                          <span className="w-8 text-sm font-mono font-bold text-slate-500 mb-2 sm:mb-0">{num}.</span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O'].map(opt => {
+                              const isSelected = answers[num] === opt;
+                              return (
+                                <button
+                                  key={opt}
+                                  onClick={() => toggleChoice(num, opt)}
+                                  className={`
                                         w-7 h-7 text-[10px] rounded border flex items-center justify-center transition-all
                                         ${isSelected
-                                          ? 'bg-indigo-600 border-indigo-600 text-white shadow'
-                                          : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-400 hover:text-indigo-600'
-                                        }
+                                      ? 'bg-indigo-600 border-indigo-600 text-white shadow'
+                                      : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-400 hover:text-indigo-600'
+                                    }
                                       `}
-                                    >
-                                      {opt}
-                                    </button>
-                                 )
-                              })}
-                           </div>
-                         </div>
-                       ))}
+                                >
+                                  {opt}
+                                </button>
+                              )
+                            })}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
 
@@ -1477,9 +1606,9 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
                   <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
                     <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 border-b border-slate-100 pb-2">Section B: Matching (36-45)</h4>
                     <div className="space-y-1">
-                       {Array.from({length: 10}, (_, i) => i + 36).map(num => (
-                         <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} options={['A','B','C','D','E','F','G','H','I','J','K','L','M']} />
-                       ))}
+                      {Array.from({ length: 10 }, (_, i) => i + 36).map(num => (
+                        <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} options={['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M']} />
+                      ))}
                     </div>
                   </div>
 
@@ -1487,80 +1616,78 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
                   <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
                     <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 border-b border-slate-100 pb-2">Section C: Careful Reading (46-55)</h4>
                     <div className="space-y-1">
-                       {Array.from({length: 10}, (_, i) => i + 46).map(num => (
-                         <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} />
-                       ))}
+                      {Array.from({ length: 10 }, (_, i) => i + 46).map(num => (
+                        <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} />
+                      ))}
                     </div>
                   </div>
                 </div>
-             </div>
-           )}
+              </div>
+            )}
 
-           {/* TRANSLATION SECTION */}
-           {activeSection === 'translation' && (
-             <div
-               ref={sectionScrollRef}
-               className="flex-grow flex flex-col overflow-y-auto"
-             >
+            {/* TRANSLATION SECTION */}
+            {activeSection === 'translation' && (
+              <div className="flex-grow flex flex-col">
                 <div className="flex justify-between items-center mb-3">
-                   <h3 className="font-bold text-slate-800 flex items-center">
-                     <Languages className="h-4 w-4 mr-2 text-indigo-500" />
-                     Part IV Translation
-                   </h3>
-                   <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">建议用时 30 Min</span>
+                  <h3 className="font-bold text-slate-800 flex items-center">
+                    <Languages className="h-4 w-4 mr-2 text-indigo-500" />
+                    Part IV Translation
+                  </h3>
+                  <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">建议用时 30 Min</span>
                 </div>
-                <div className="flex-grow bg-white rounded-lg border border-slate-200 shadow-sm p-4 relative focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
-                   <textarea
-                     value={answers['translation'] || ''}
-                     onChange={(e) => updateAnswer('translation', e.target.value)}
-                     className="flex-grow w-full h-full resize-none focus:outline-none text-slate-700 font-serif leading-relaxed text-lg"
-                     placeholder="在这里输入你的翻译..."
-                   />
+                <div className="flex-grow bg-white rounded-lg border border-slate-200 shadow-sm p-4 relative focus-within:ring-2 focus-within:ring-indigo-100 transition-all" style={{ minHeight: '500px' }}>
+                  <textarea
+                    value={answers['translation'] || ''}
+                    onChange={(e) => updateAnswer('translation', e.target.value)}
+                    className="flex-grow w-full h-full resize-none focus:outline-none text-slate-700 font-serif leading-relaxed text-base"
+                    placeholder="在这里输入你的翻译..."
+                    style={{ minHeight: '460px' }}
+                  />
                 </div>
-             </div>
-           )}
+              </div>
+            )}
 
-           {/* NOTES SECTION */}
-           {activeSection === 'notes' && (
-             <div
-               ref={sectionScrollRef}
-               className="flex-grow flex flex-col bg-yellow-50/60"
-             >
+            {/* NOTES SECTION */}
+            {activeSection === 'notes' && (
+              <div className="flex-grow flex flex-col bg-yellow-50/60 rounded-lg overflow-hidden">
                 <div className="p-3 border-b border-yellow-200 bg-yellow-100/80 flex justify-between items-center">
-                   <span className="text-xs font-bold text-yellow-900 uppercase tracking-wide flex items-center">
-                     <PenLine className="h-3 w-3 mr-2" />
-                     草稿纸 & 单词本
-                     <span className="ml-2 text-[10px] font-normal text-yellow-800/80 hidden sm:inline">
-                       文本会自动保存
-                     </span>
-                   </span>
-                   <button
-                     onClick={() => setNotes('')}
-                     className="text-yellow-800/80 hover:text-yellow-900 p-1 rounded hover:bg-yellow-200/80"
-                     title="清空全部"
-                   >
-                     <Eraser className="h-4 w-4" />
-                   </button>
+                  <span className="text-xs font-bold text-yellow-900 uppercase tracking-wide flex items-center">
+                    <PenLine className="h-3 w-3 mr-2" />
+                    草稿纸 & 单词本
+                    <span className="ml-2 text-[10px] font-normal text-yellow-800/80 hidden sm:inline">
+                      文本会自动保存
+                    </span>
+                  </span>
+                  <button
+                    onClick={() => setNotes('')}
+                    className="text-yellow-800/80 hover:text-yellow-900 p-1 rounded hover:bg-yellow-200/80"
+                    title="清空全部"
+                  >
+                    <Eraser className="h-4 w-4" />
+                  </button>
                 </div>
-                <div className="flex-grow p-3 flex flex-col gap-3">
+                <div className="flex-grow p-3 flex flex-col gap-3" style={{ minHeight: '500px' }}>
                   <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
                     className="flex-grow w-full rounded-lg border border-yellow-200 bg-white/80 p-3 text-sm text-slate-800 leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-yellow-300"
                     placeholder="在这里随手记笔记、单词或长难句。文本会自动保存。"
+                    style={{ minHeight: '460px' }}
                   />
                   {/* TODO: optional image preview area if later we store images separately */}
                 </div>
-             </div>
-           )}
+              </div>
+            )}
 
-           {/* Bottom Bar */}
-           <div className="bg-white border-t border-slate-200 p-3 flex justify-end items-center text-[11px] sm:text-xs text-slate-500 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-20">
-             <span className="flex items-center text-green-600">
-               <CheckCircle className="h-3 w-3 mr-1" />
-               已自动保存至本地
-             </span>
-           </div>
+          </div>
+        </div>
+
+        {/* Bottom Bar - Sticky at bottom */}
+        <div className="sticky bottom-0 bg-white border-t border-slate-200 p-3 flex justify-end items-center text-[11px] sm:text-xs text-slate-500 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] z-10">
+          <span className="flex items-center text-green-600">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            已自动保存至本地
+          </span>
         </div>
       </div>
 
@@ -1573,24 +1700,24 @@ const QuestionRow = ({ num, answers, toggleChoice, options = ['A', 'B', 'C', 'D'
   <div className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 rounded px-2 transition-colors group">
     <span className="w-8 text-sm font-mono font-bold text-slate-400 group-hover:text-slate-600 transition-colors">{num}.</span>
     <div className="flex space-x-2 sm:space-x-4">
-       {options.map(opt => {
-         const isSelected = answers[num] === opt;
-         return (
-           <button
-             key={opt}
-             onClick={() => toggleChoice(num, opt)}
-             className={`
+      {options.map(opt => {
+        const isSelected = answers[num] === opt;
+        return (
+          <button
+            key={opt}
+            onClick={() => toggleChoice(num, opt)}
+            className={`
                 w-8 h-8 rounded-full text-xs font-medium border flex items-center justify-center transition-all
                 ${isSelected
-                  ? 'bg-indigo-600 border-indigo-600 text-white shadow-md scale-105'
-                  : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50'
-                }
+                ? 'bg-indigo-600 border-indigo-600 text-white shadow-md scale-105'
+                : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50'
+              }
              `}
-           >
-             {opt}
-           </button>
-         );
-       })}
+          >
+            {opt}
+          </button>
+        );
+      })}
     </div>
   </div>
 );
