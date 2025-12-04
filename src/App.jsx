@@ -227,7 +227,7 @@ export default function CET6FocusMode() {
     }
   };
 
-  const handleUpdateProgress = async (examId, answers, notes, annotations, elapsedSeconds) => {
+  const handleUpdateProgress = async (examId, answers, notes, annotations, elapsedSeconds, sectionCompletion) => {
     setExams((prev) => {
       const next = prev.map((exam) =>
         exam.id === examId
@@ -236,6 +236,7 @@ export default function CET6FocusMode() {
             userAnswers: answers,
             notes,
             annotations: annotations || exam.annotations || {},
+            sectionCompletion: sectionCompletion || exam.sectionCompletion || {},
             elapsedSeconds: typeof elapsedSeconds === 'number'
               ? elapsedSeconds
               : exam.elapsedSeconds || 0,
@@ -348,6 +349,10 @@ const COLLAPSED_YEARS_KEY = 'cet6-zen-collapsed-years';
 const Dashboard = ({ exams, onOpen, onDelete, onCreate, onBulkImport }) => {
   const [showModal, setShowModal] = useState(false);
   const [showBulkModal, setShowBulkModal] = useState(false);
+  const [showOnlinePapersModal, setShowOnlinePapersModal] = useState(false);
+  const [onlinePapers, setOnlinePapers] = useState([]);
+  const [loadingOnlinePapers, setLoadingOnlinePapers] = useState(false);
+  const [importingPaper, setImportingPaper] = useState(null);
 
   // Load collapsed state from localStorage
   const [collapsedYears, setCollapsedYears] = useState(() => {
@@ -368,6 +373,45 @@ const Dashboard = ({ exams, onOpen, onDelete, onCreate, onBulkImport }) => {
       console.warn('Failed to save collapsed state:', error);
     }
   }, [collapsedYears]);
+
+  // Load online papers from papers.json
+  const loadOnlinePapers = async () => {
+    setLoadingOnlinePapers(true);
+    try {
+      const response = await fetch('/papers.json');
+      if (!response.ok) throw new Error('Failed to load papers.json');
+      const data = await response.json();
+      setOnlinePapers(data.papers || []);
+    } catch (error) {
+      console.error('Failed to load online papers:', error);
+      alert('加载在线试卷失败，请确保 papers.json 文件存在');
+      setOnlinePapers([]);
+    } finally {
+      setLoadingOnlinePapers(false);
+    }
+  };
+
+  // Import an online paper
+  const handleImportOnlinePaper = async (paper) => {
+    setImportingPaper(paper.id);
+    try {
+      // Fetch the PDF file
+      const response = await fetch(`/${paper.filename}`);
+      if (!response.ok) throw new Error('Failed to fetch PDF');
+      const blob = await response.blob();
+      const file = new File([blob], paper.filename, { type: 'application/pdf' });
+
+      // Import it like a bulk import
+      await onBulkImport([file]);
+
+      alert(`成功导入：${paper.title}`);
+    } catch (error) {
+      console.error('Failed to import paper:', error);
+      alert(`导入失败：${paper.title}`);
+    } finally {
+      setImportingPaper(null);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -414,6 +458,16 @@ const Dashboard = ({ exams, onOpen, onDelete, onCreate, onBulkImport }) => {
         </div>
         <div className="flex items-center gap-2">
           <button
+            onClick={() => {
+              setShowOnlinePapersModal(true);
+              loadOnlinePapers();
+            }}
+            className="flex items-center px-3 py-2 border border-green-200 text-green-700 bg-green-50/60 rounded-lg hover:bg-green-100 transition-colors text-xs font-medium"
+          >
+            <BookOpen className="h-4 w-4 mr-1.5" />
+            在线试卷库
+          </button>
+          <button
             onClick={() => setShowBulkModal(true)}
             className="flex items-center px-3 py-2 border border-indigo-200 text-indigo-700 bg-indigo-50/60 rounded-lg hover:bg-indigo-100 transition-colors text-xs font-medium"
           >
@@ -451,16 +505,23 @@ const Dashboard = ({ exams, onOpen, onDelete, onCreate, onBulkImport }) => {
             // Calculate completion stats for this year
             const totalInYear = examsInYear.length;
             const completedInYear = examsInYear.filter(exam => {
-              const totalItems = 57;
-              let answeredCount = 0;
-              if (exam.userAnswers) {
-                for (let i = 1; i <= 55; i++) {
-                  if (exam.userAnswers[i]) answeredCount++;
-                }
-                if (exam.userAnswers.writing?.trim().length > 10) answeredCount++;
-                if (exam.userAnswers.translation?.trim().length > 10) answeredCount++;
+              // Consider exam completed if it has any manual completion marks
+              if (exam.sectionCompletion) {
+                const completedCount = [
+                  exam.sectionCompletion.writing,
+                  exam.sectionCompletion.listening,
+                  exam.sectionCompletion.reading,
+                  exam.sectionCompletion.translation
+                ].filter(Boolean).length;
+                if (completedCount >= 3) return true; // At least 3 sections done
               }
-              return answeredCount >= totalItems * 0.8; // 80% completion
+              // Fallback: check if has significant answers
+              if (!exam.userAnswers) return false;
+              let answeredCount = 0;
+              for (let i = 1; i <= 55; i++) {
+                if (exam.userAnswers[i]) answeredCount++;
+              }
+              return answeredCount >= 40; // At least 40 questions answered
             }).length;
 
             return (
@@ -526,17 +587,39 @@ const Dashboard = ({ exams, onOpen, onDelete, onCreate, onBulkImport }) => {
                     <div className="pt-4 pb-6 px-4 bg-gradient-to-b from-stone-100 to-stone-50 rounded-b-lg border-x-2 border-b-2 border-stone-300 shadow-lg">
                       <div className="flex flex-wrap gap-3">
                         {examsInYear.map((exam) => {
-                          const totalItems = 55 + 2;
-                          let answeredCount = 0;
-                          if (exam.userAnswers) {
-                            for (let i = 1; i <= 55; i += 1) {
-                              if (exam.userAnswers[i]) answeredCount += 1;
-                            }
-                            if (exam.userAnswers.writing?.trim().length > 10) answeredCount += 1;
-                            if (exam.userAnswers.translation?.trim().length > 10) answeredCount += 1;
+                          // Calculate progress based on both answers and manual section completion
+                          let completedSections = 0;
+                          const totalSections = 4; // writing, listening, reading, translation
+
+                          // Check manual completion marks
+                          if (exam.sectionCompletion) {
+                            if (exam.sectionCompletion.writing) completedSections++;
+                            if (exam.sectionCompletion.listening) completedSections++;
+                            if (exam.sectionCompletion.reading) completedSections++;
+                            if (exam.sectionCompletion.translation) completedSections++;
                           }
 
-                          const progress = Math.round((answeredCount / totalItems) * 100);
+                          // If no manual marks, fall back to answer-based calculation
+                          if (completedSections === 0 && exam.userAnswers) {
+                            // Writing: if has content
+                            if (exam.userAnswers.writing?.trim().length > 10) completedSections++;
+                            // Listening: if answered 20+ questions (1-25)
+                            let listeningCount = 0;
+                            for (let i = 1; i <= 25; i++) {
+                              if (exam.userAnswers[i]) listeningCount++;
+                            }
+                            if (listeningCount >= 20) completedSections++;
+                            // Reading: if answered 25+ questions (26-55)
+                            let readingCount = 0;
+                            for (let i = 26; i <= 55; i++) {
+                              if (exam.userAnswers[i]) readingCount++;
+                            }
+                            if (readingCount >= 25) completedSections++;
+                            // Translation: if has content
+                            if (exam.userAnswers.translation?.trim().length > 10) completedSections++;
+                          }
+
+                          const progress = Math.round((completedSections / totalSections) * 100);
                           const createdAtMs =
                             typeof exam.createdAt === 'number'
                               ? exam.createdAt
@@ -739,6 +822,115 @@ const Dashboard = ({ exams, onOpen, onDelete, onCreate, onBulkImport }) => {
               >
                 关闭
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Online Papers Modal */}
+      {showOnlinePapersModal && (
+        <div
+          className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setShowOnlinePapersModal(false);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === 'Escape') setShowOnlinePapersModal(false);
+          }}
+          tabIndex={-1}
+        >
+          <div className="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[80vh] flex flex-col animate-in fade-in zoom-in duration-200">
+            <div className="p-6 border-b border-slate-200">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-bold text-slate-800">在线试卷库</h3>
+                  <p className="text-sm text-slate-600 mt-1">
+                    点击导入按钮，将试卷添加到您的记录库
+                  </p>
+                </div>
+                <button
+                  onClick={() => setShowOnlinePapersModal(false)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
+                  <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-6">
+              {loadingOnlinePapers ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader className="h-8 w-8 animate-spin text-indigo-600" />
+                  <span className="ml-3 text-slate-600">加载中...</span>
+                </div>
+              ) : onlinePapers.length === 0 ? (
+                <div className="text-center py-12">
+                  <BookOpen className="h-12 w-12 mx-auto text-slate-300 mb-3" />
+                  <p className="text-slate-500">暂无可用的在线试卷</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {/* Group papers by year */}
+                  {Object.entries(
+                    onlinePapers.reduce((acc, paper) => {
+                      const year = paper.year || '未分组';
+                      if (!acc[year]) acc[year] = [];
+                      acc[year].push(paper);
+                      return acc;
+                    }, {})
+                  )
+                    .sort(([a], [b]) => Number(b) - Number(a))
+                    .map(([year, papers]) => (
+                      <div key={year} className="space-y-2">
+                        <h4 className="text-sm font-bold text-slate-700 px-2 py-1 bg-slate-100 rounded">
+                          {year} 年
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {papers.map((paper) => {
+                            const isImporting = importingPaper === paper.id;
+                            return (
+                              <div
+                                key={paper.id}
+                                className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:border-indigo-300 hover:bg-indigo-50/30 transition-all"
+                              >
+                                <div className="flex-1">
+                                  <h5 className="text-sm font-medium text-slate-800">
+                                    {paper.title}
+                                  </h5>
+                                  {paper.answerKey && (
+                                    <span className="text-xs text-green-600">含答案解析</span>
+                                  )}
+                                </div>
+                                <button
+                                  onClick={() => handleImportOnlinePaper(paper)}
+                                  disabled={isImporting}
+                                  className={`flex items-center px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${isImporting
+                                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                      : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                    }`}
+                                >
+                                  {isImporting ? (
+                                    <>
+                                      <Loader className="h-3 w-3 animate-spin mr-1" />
+                                      导入中...
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Upload className="h-3 w-3 mr-1" />
+                                      导入
+                                    </>
+                                  )}
+                                </button>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1250,36 +1442,38 @@ const PdfViewer = ({ fileUrl, pdfLibLoaded, annotations = {}, onAnnotationsChang
             style={{ touchAction: 'none' }}
           />
 
-          {/* Navigation Click Zones (Always active) */}
-          <>
-            {/* Left Zone - Previous Page */}
-            <div
-              className="absolute top-0 bottom-0 left-0 w-[12%] z-10 cursor-pointer hover:bg-black/5 group flex items-center justify-start pl-2 transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                changePage(-1);
-              }}
-              title="上一页"
-            >
-              <div className="bg-black/20 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100 backdrop-blur-sm">
-                <ChevronLeft className="h-6 w-6" />
+          {/* Navigation Click Zones (Only when not drawing) */}
+          {tool === 'none' && (
+            <>
+              {/* Left Zone - Previous Page */}
+              <div
+                className="absolute top-0 bottom-0 left-0 w-[12%] z-10 cursor-pointer hover:bg-black/5 group flex items-center justify-start pl-2 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  changePage(-1);
+                }}
+                title="上一页"
+              >
+                <div className="bg-black/20 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100 backdrop-blur-sm">
+                  <ChevronLeft className="h-6 w-6" />
+                </div>
               </div>
-            </div>
 
-            {/* Right Zone - Next Page */}
-            <div
-              className="absolute top-0 bottom-0 right-0 w-[12%] z-10 cursor-pointer hover:bg-black/5 group flex items-center justify-end pr-2 transition-colors"
-              onClick={(e) => {
-                e.stopPropagation();
-                changePage(1);
-              }}
-              title="下一页"
-            >
-              <div className="bg-black/20 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100 backdrop-blur-sm">
-                <ChevronRight className="h-6 w-6" />
+              {/* Right Zone - Next Page */}
+              <div
+                className="absolute top-0 bottom-0 right-0 w-[12%] z-10 cursor-pointer hover:bg-black/5 group flex items-center justify-end pr-2 transition-colors"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  changePage(1);
+                }}
+                title="下一页"
+              >
+                <div className="bg-black/20 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-all transform scale-90 group-hover:scale-100 backdrop-blur-sm">
+                  <ChevronRight className="h-6 w-6" />
+                </div>
               </div>
-            </div>
-          </>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -1299,15 +1493,21 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
   const [annotations, setAnnotations] = useState(exam.annotations || {});
   const [timerRunning, setTimerRunning] = useState(true);
   const [rightPanelVisible, setRightPanelVisible] = useState(true);
+  const [sectionCompletion, setSectionCompletion] = useState(exam.sectionCompletion || {
+    writing: false,
+    listening: false,
+    reading: false,
+    translation: false,
+  });
   const sectionScrollRef = useRef(null);
 
-  // Debounced Save
+  // Debounced Save - include sectionCompletion
   useEffect(() => {
     const timer = setTimeout(() => {
-      onAutoSave(exam.id, answers, notes, annotations, elapsedSeconds);
+      onAutoSave(exam.id, answers, notes, annotations, elapsedSeconds, sectionCompletion);
     }, 1000);
     return () => clearTimeout(timer);
-  }, [answers, notes, annotations, elapsedSeconds]);
+  }, [answers, notes, annotations, elapsedSeconds, sectionCompletion]);
 
   // Notes are now pure文本（使用 textarea），不再依赖 contentEditable DOM 同步
 
@@ -1544,12 +1744,23 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
 
               {/* WRITING SECTION */}
               {activeSection === 'writing' && (
-                <div className="flex-grow flex flex-col">
+                <div className="h-full flex flex-col">
                   <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-bold text-slate-800 flex items-center">
-                      <Feather className="h-4 w-4 mr-2 text-indigo-500" />
-                      Part I Writing
-                    </h3>
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-bold text-slate-800 flex items-center">
+                        <Feather className="h-4 w-4 mr-2 text-indigo-500" />
+                        Part I Writing
+                      </h3>
+                      <label className="flex items-center gap-1.5 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={sectionCompletion.writing}
+                          onChange={(e) => setSectionCompletion(prev => ({ ...prev, writing: e.target.checked }))}
+                          className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+                        />
+                        <span className="text-xs text-slate-500 group-hover:text-indigo-600 transition-colors">已完成</span>
+                      </label>
+                    </div>
                     <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">建议用时 30 Min</span>
                   </div>
                   <div className="flex-grow bg-white rounded-lg border border-slate-200 shadow-sm p-4 flex flex-col relative focus-within:ring-2 focus-within:ring-indigo-100 transition-all" style={{ minHeight: '500px' }}>
@@ -1558,7 +1769,7 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
                       onChange={(e) => updateAnswer('writing', e.target.value)}
                       className="flex-grow w-full h-full resize-none focus:outline-none text-slate-700 leading-relaxed text-base"
                       placeholder="在这里输入你的作文..."
-                      style={{ minHeight: '460px' }}
+                      style={{ minHeight: '640px' }}
                     />
                     <div className="absolute bottom-2 right-4 text-xs text-slate-300 pointer-events-none bg-white/80 px-2 rounded">
                       词数统计: {answers['writing']?.trim().split(/\s+/).filter(Boolean).length || 0}
@@ -1569,12 +1780,23 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
 
               {/* LISTENING SECTION */}
               {activeSection === 'listening' && (
-                <div className="flex-grow">
+                <div className="h-full">
                   <div className="flex justify-between items-center mb-3 bg-slate-50 py-2 border-b border-slate-200 px-2 sm:px-4">
-                    <h3 className="font-bold text-slate-800 flex items-center">
-                      <Headphones className="h-4 w-4 mr-2 text-indigo-500" />
-                      Part II Listening
-                    </h3>
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-bold text-slate-800 flex items-center">
+                        <Headphones className="h-4 w-4 mr-2 text-indigo-500" />
+                        Part II Listening
+                      </h3>
+                      <label className="flex items-center gap-1.5 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={sectionCompletion.listening}
+                          onChange={(e) => setSectionCompletion(prev => ({ ...prev, listening: e.target.checked }))}
+                          className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+                        />
+                        <span className="text-xs text-slate-500 group-hover:text-indigo-600 transition-colors">已完成</span>
+                      </label>
+                    </div>
                     <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">25 Min / 25 题</span>
                   </div>
 
@@ -1612,12 +1834,23 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
 
               {/* READING SECTION */}
               {activeSection === 'reading' && (
-                <div className="flex-grow">
+                <div className="h-full">
                   <div className="flex justify-between items-center mb-3 bg-slate-50 py-2 border-b border-slate-200 px-2 sm:px-4">
-                    <h3 className="font-bold text-slate-800 flex items-center">
-                      <BookOpen className="h-4 w-4 mr-2 text-indigo-500" />
-                      Part III Reading
-                    </h3>
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-bold text-slate-800 flex items-center">
+                        <BookOpen className="h-4 w-4 mr-2 text-indigo-500" />
+                        Part III Reading
+                      </h3>
+                      <label className="flex items-center gap-1.5 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={sectionCompletion.reading}
+                          onChange={(e) => setSectionCompletion(prev => ({ ...prev, reading: e.target.checked }))}
+                          className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+                        />
+                        <span className="text-xs text-slate-500 group-hover:text-indigo-600 transition-colors">已完成</span>
+                      </label>
+                    </div>
                     <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">40 Min / 30 题</span>
                   </div>
 
@@ -1660,10 +1893,14 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
 
                     {/* Section B */}
                     <div className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm">
-                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-4 border-b border-slate-100 pb-2">Section B: Matching (36-45)</h4>
+                      <h4 className="text-xs font-bold text-slate-500 uppercase mb-2 border-b border-slate-100 pb-2">Section B: Matching (36-45)</h4>
+                      <div className="bg-blue-50 text-blue-700 px-3 py-2 rounded text-xs mb-3 flex items-start">
+                        <AlertCircle className="h-3 w-3 mr-1 mt-0.5 flex-shrink-0" />
+                        段落匹配题，请在框中填入对应的选项字母
+                      </div>
                       <div className="space-y-1">
                         {Array.from({ length: 10 }, (_, i) => i + 36).map(num => (
-                          <QuestionRow key={num} num={num} answers={answers} toggleChoice={toggleChoice} options={['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M']} />
+                          <MatchingQuestionRow key={num} num={num} answers={answers} updateAnswer={updateAnswer} />
                         ))}
                       </div>
                     </div>
@@ -1683,12 +1920,23 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
 
               {/* TRANSLATION SECTION */}
               {activeSection === 'translation' && (
-                <div className="flex-grow flex flex-col">
+                <div className="h-full flex flex-col">
                   <div className="flex justify-between items-center mb-3">
-                    <h3 className="font-bold text-slate-800 flex items-center">
-                      <Languages className="h-4 w-4 mr-2 text-indigo-500" />
-                      Part IV Translation
-                    </h3>
+                    <div className="flex items-center gap-3">
+                      <h3 className="font-bold text-slate-800 flex items-center">
+                        <Languages className="h-4 w-4 mr-2 text-indigo-500" />
+                        Part IV Translation
+                      </h3>
+                      <label className="flex items-center gap-1.5 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={sectionCompletion.translation}
+                          onChange={(e) => setSectionCompletion(prev => ({ ...prev, translation: e.target.checked }))}
+                          className="w-4 h-4 text-indigo-600 rounded cursor-pointer"
+                        />
+                        <span className="text-xs text-slate-500 group-hover:text-indigo-600 transition-colors">已完成</span>
+                      </label>
+                    </div>
                     <span className="text-xs text-slate-400 bg-slate-100 px-2 py-1 rounded border border-slate-200">建议用时 30 Min</span>
                   </div>
                   <div className="flex-grow bg-white rounded-lg border border-slate-200 shadow-sm p-4 relative focus-within:ring-2 focus-within:ring-indigo-100 transition-all" style={{ minHeight: '500px' }}>
@@ -1697,7 +1945,7 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
                       onChange={(e) => updateAnswer('translation', e.target.value)}
                       className="flex-grow w-full resize-none focus:outline-none text-slate-700 leading-relaxed text-base"
                       placeholder="在这里输入你的翻译..."
-                      style={{ minHeight: '460px' }}
+                      style={{ minHeight: '640px' }}
                     />
                   </div>
                 </div>
@@ -1728,7 +1976,7 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
                       onChange={(e) => setNotes(e.target.value)}
                       className="flex-grow w-full rounded-lg border border-yellow-200 bg-white/80 p-3 text-sm text-slate-800 leading-relaxed resize-none focus:outline-none focus:ring-1 focus:ring-yellow-300"
                       placeholder="在这里随手记笔记、单词或长难句。文本会自动保存。"
-                      style={{ minHeight: '460px' }}
+                      style={{ minHeight: '640px' }}
                     />
                     {/* TODO: optional image preview area if later we store images separately */}
                   </div>
@@ -1755,9 +2003,9 @@ const Workbench = ({ exam, onBack, onAutoSave, pdfLibLoaded }) => {
 
 // --- Helper Component for Question Rows ---
 const QuestionRow = ({ num, answers, toggleChoice, options = ['A', 'B', 'C', 'D'] }) => (
-  <div className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 rounded px-2 transition-colors group">
-    <span className="w-8 text-sm font-mono font-bold text-slate-400 group-hover:text-slate-600 transition-colors">{num}.</span>
-    <div className="flex space-x-2 sm:space-x-4">
+  <div className="flex flex-col sm:flex-row items-start sm:items-center py-2 border-b border-slate-50 last:border-0 hover:bg-slate-50 rounded px-2 transition-colors">
+    <span className="w-8 text-sm font-mono font-bold text-slate-500 mb-2 sm:mb-0">{num}.</span>
+    <div className="flex flex-wrap gap-1.5 flex-1">
       {options.map(opt => {
         const isSelected = answers[num] === opt;
         return (
@@ -1765,17 +2013,49 @@ const QuestionRow = ({ num, answers, toggleChoice, options = ['A', 'B', 'C', 'D'
             key={opt}
             onClick={() => toggleChoice(num, opt)}
             className={`
-                w-8 h-8 rounded-full text-xs font-medium border flex items-center justify-center transition-all
-                ${isSelected
-                ? 'bg-indigo-600 border-indigo-600 text-white shadow-md scale-105'
-                : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50'
+              w-8 h-8 text-xs rounded border flex items-center justify-center transition-all font-medium
+              ${isSelected
+                ? 'bg-indigo-600 border-indigo-600 text-white shadow'
+                : 'bg-white border-slate-200 text-slate-500 hover:border-indigo-400 hover:text-indigo-600'
               }
-             `}
+            `}
           >
             {opt}
           </button>
-        );
+        )
       })}
     </div>
   </div>
 );
+
+// --- Helper Component for Matching Questions (Text Input) ---
+const MatchingQuestionRow = ({ num, answers, updateAnswer }) => {
+  const value = answers[num] || '';
+
+  const handleChange = (e) => {
+    const input = e.target.value.toUpperCase().trim();
+    // Allow any uppercase letter A-Z
+    if (input === '' || /^[A-Z]$/.test(input)) {
+      updateAnswer(num, input);
+    }
+  };
+
+  return (
+    <div className="flex items-center py-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 rounded px-2 transition-colors">
+      <span className="w-8 text-sm font-mono font-bold text-slate-500">{num}.</span>
+      <input
+        type="text"
+        value={value}
+        onChange={handleChange}
+        maxLength={1}
+        placeholder="A-Z"
+        className="w-12 h-10 text-center text-base font-bold rounded border-2 border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all outline-none uppercase"
+        style={{
+          backgroundColor: value ? '#eef2ff' : 'white',
+          color: value ? '#4f46e5' : '#94a3b8'
+        }}
+      />
+      <span className="ml-3 text-xs text-slate-400">请填入选项字母 (如 A、B、C...)</span>
+    </div>
+  );
+};
