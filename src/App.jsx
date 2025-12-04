@@ -907,8 +907,8 @@ const Dashboard = ({ exams, onOpen, onDelete, onCreate, onBulkImport }) => {
                                   onClick={() => handleImportOnlinePaper(paper)}
                                   disabled={isImporting}
                                   className={`flex items-center px-3 py-1.5 rounded-md text-xs font-medium transition-colors ${isImporting
-                                      ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                                      : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                    ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                                    : 'bg-indigo-600 text-white hover:bg-indigo-700'
                                     }`}
                                 >
                                   {isImporting ? (
@@ -2034,7 +2034,7 @@ const MatchingQuestionRow = ({ num, answers, updateAnswer }) => {
 
   const handleChange = (e) => {
     const input = e.target.value.toUpperCase().trim();
-    // Allow any uppercase letter A-Z
+
     if (input === '' || /^[A-Z]$/.test(input)) {
       updateAnswer(num, input);
     }
@@ -2048,7 +2048,7 @@ const MatchingQuestionRow = ({ num, answers, updateAnswer }) => {
         value={value}
         onChange={handleChange}
         maxLength={1}
-        placeholder="A-Z"
+        placeholder="A-..."
         className="w-12 h-10 text-center text-base font-bold rounded border-2 border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 transition-all outline-none uppercase"
         style={{
           backgroundColor: value ? '#eef2ff' : 'white',
